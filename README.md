@@ -11,7 +11,7 @@ trade, inn rooms, shared meals, gifts, guest rights, and promises NPCs actually 
 ![SkyrimNet](https://img.shields.io/badge/SkyrimNet-beta%2025%2B-8a2be2)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**[⬇ Download the latest release](https://github.com/AinsteinDev/MundaneMatters/releases/latest)**
+**[⬇ Download the latest release](https://github.com/AinsteinDev/MundaneMatters/releases)**
 
 </div>
 
@@ -120,7 +120,7 @@ Merchants quote their **real** prices and innkeepers know their real room cost. 
 Tested on Skyrim AE 1.6.1170.
 
 ## Installation
-1. Download `MundaneMatters-vX.Y.Z.zip` from [Releases](https://github.com/AinsteinDev/MundaneMatters/releases/latest).
+1. Download `MundaneMatters-vX.Y.Z.zip` from [Releases](https://github.com/AinsteinDev/MundaneMatters/releases).
 2. Install it with **Mod Organizer 2** or **Vortex** like any other mod, or extract it into your `Data` folder.
 3. Start the game. **Mundane Matters** appears in SkyrimNet's Plugins list.
 4. *(Recommended)* In SkyrimNet's AI settings, set the **`mundanematters_classifier`** model slot to a fast, cheap model that writes clean JSON
