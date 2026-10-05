@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mundane Matters</title>
+<!--
+  MundaneMatters popup (PrismaUI). C++ calls mundaneMattersShow({title, npc, detail, price, gold, seconds, showPrice,
+  accept, decline, items}); the page answers through window.mundaneMattersChoice(
+  "accept" | "decline" | "timeout" | "pick:<formid hex>:<qty>").
+  seconds <= 0: no timer (gifts wait for the player). items: picker mode (choose what to give).
+  Keys (yes/no popups only): E / Enter accept, Esc / Tab / R decline. Picker: mouse, Esc backs out.
+-->
+<style>
+	:root {
+		--panel: rgba(10, 9, 7, 0.95);
+		--edge: rgba(217, 185, 104, 0.75);
+		--edge-soft: rgba(217, 185, 104, 0.28);
+		--text: #f3ecd9;
+		--muted: #cfc4a8;
+		--gold: #e6c672;
+		--short: #e0866f;
+		--row: rgba(255, 255, 255, 0.03);
+		--row-sel: rgba(217, 185, 104, 0.26);
+	}
+	html, body {
+		margin: 0;
+		height: 100%;
+		background: transparent;
+		overflow: hidden;
+		font-family: "Futura Condensed", "Trebuchet MS", "Segoe UI", sans-serif;
+		color: var(--text);
+		user-select: none;
+	}
+	#card {
+		position: absolute;
+		left: 50%;
+		bottom: 12%;
+		transform: translate(-50%, 14px);
+		width: min(620px, 92vw);
+		box-sizing: border-box;
+		padding: 28px 34px 24px;
+		background: var(--panel);
+		border: 1px solid var(--edge-soft);
+		border-top: 2px solid var(--edge);
+		border-bottom: 2px solid var(--edge);
+		box-shadow: 0 0 60px rgba(0, 0, 0, 0.75);
+		opacity: 0;
+		transition: opacity 160ms ease, transform 160ms ease;
+		text-align: center;
+	}
+	#card.open { opacity: 1; transform: translate(-50%, 0); }
+	.title { font-size: 16px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--gold); }
+	.npc { font-size: 34px; margin: 8px 0 4px; letter-spacing: 0.03em; }
+	.detail { font-size: 20px; color: var(--muted); line-height: 1.35; }
+	.price { margin: 16px 0 4px; font-size: 42px; color: var(--gold); letter-spacing: 0.02em; }
+	.price small { font-size: 18px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-left: 6px; }
+	.purse { font-size: 17px; color: var(--muted); }
+	.purse.short { color: var(--short); }
+	.timer { height: 4px; margin: 20px 0 18px; background: var(--edge-soft); overflow: hidden; border-radius: 2px; }
+	.timer i { display: block; height: 100%; width: 100%; background: var(--gold); transform-origin: left; }
+	.timer.off { height: 0; margin: 14px 0 10px; }
+	.buttons { display: flex; gap: 16px; justify-content: center; }
+	button {
+		flex: 1;
+		max-width: 260px;
+		min-height: 54px;
+		padding: 12px 16px;
+		line-height: 1.3;
+		font: inherit;
+		font-size: 20px;
+		color: var(--text);
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid var(--edge-soft);
+		border-radius: 3px;
+		cursor: pointer;
+	}
+	button:hover { border-color: var(--edge); background: rgba(217, 185, 104, 0.12); }
+	button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+	button.accept { color: var(--gold); border-color: var(--edge); }
+	button:disabled { opacity: 0.35; cursor: default; }
+	kbd { font: inherit; font-size: 14px; color: var(--muted); margin-left: 8px; }
+	#picker { display: none; margin: 18px 0 0; text-align: left; }
+	#picker.on { display: block; }
+	#list {
+		max-height: 44vh;
+		overflow-y: auto;
+		border: 1px solid var(--edge-soft);
+		border-radius: 3px;
+	}
+	#list button {
+		display: flex;
+		width: 100%;
+		max-width: none;
+		min-height: 48px;
+		align-items: center;
+		justify-content: space-between;
+		gap: 14px;
+		padding: 10px 16px;
+		border: 0;
+		border-left: 4px solid transparent;
+		border-bottom: 1px solid rgba(217, 185, 104, 0.12);
+		border-radius: 0;
+		background: var(--row);
+		text-align: left;
+		font-size: 19px;
+	}
+	#list button:nth-child(even) { background: rgba(255, 255, 255, 0.06); }
+	#list button.sel { background: var(--row-sel); border-left-color: var(--gold); color: #fff6dc; }
+	#list .meta { color: var(--muted); font-size: 16px; white-space: nowrap; }
+	.qty { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 16px 0 0; color: var(--muted); font-size: 18px; }
+	.qty input {
+		width: 96px;
+		padding: 8px 10px;
+		font: inherit;
+		font-size: 22px;
+		color: var(--text);
+		background: rgba(0, 0, 0, 0.45);
+		border: 1px solid var(--edge);
+		border-radius: 3px;
+		text-align: center;
+	}
+	.hint { margin-top: 10px; font-size: 16px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<div id="card" role="dialog" aria-modal="true" aria-labelledby="title npc">
+	<div class="title" id="title">Offer</div>
+	<div class="npc" id="npc"></div>
+	<div class="detail" id="detail"></div>
+	<div class="price" id="priceRow"><span id="price">0</span><small>gold</small></div>
+	<div class="purse" id="purse"></div>
+	<div id="picker">
+		<div id="list" role="listbox" aria-label="Your items"></div>
+		<div class="qty"><label for="qty">How many</label> <input id="qty" type="number" min="1" value="1"> <span id="qtyMax"></span></div>
+		<div class="hint" id="hint">Click an item, then Give.</div>
+	</div>
+	<div class="timer" id="timer"><i id="bar"></i></div>
+	<div class="buttons">
+		<button class="accept" id="accept"><span id="acceptText">Accept</span><kbd id="acceptKey">E</kbd></button>
+		<button id="decline"><span id="declineText">Decline</span><kbd id="declineKey">Tab</kbd></button>
+	</div>
+</div>
+<script>
+	const $ = (id) => document.getElementById(id);
+	let open = false;
+	let timed = true;
+	let deadline = 0;
+	let duration = 15000;
+	let frame = 0;
+	// Keys only count once the popup has been visible a moment, and never in a burst of typing:
+	// a line being typed when it appears must not answer it ("e" = accept).
+	let shownAt = 0;
+	let keyTimes = [];
+	const GRACE_MS = 800;
+	let picking = false;
+	let selected = null;
+
+	function answer(choice) {
+		if (!open) return;
+		open = false;
+		cancelAnimationFrame(frame);
+		$("card").classList.remove("open");
+		try { window.mundaneMattersChoice(choice); } catch (e) { console.log("mundaneMattersChoice unavailable", e); }
+	}
+
+	function tick() {
+		if (!open || !timed) return;
+		const left = Math.max(0, deadline - performance.now());
+		$("bar").style.transform = "scaleX(" + (left / duration) + ")";
+		if (left <= 0) { answer("timeout"); return; }
+		frame = requestAnimationFrame(tick);
+	}
+
+	function select(item, btn) {
+		selected = item;
+		document.querySelectorAll("#list button").forEach((b) => { b.classList.remove("sel"); b.setAttribute("aria-selected", "false"); });
+		btn.classList.add("sel");
+		btn.setAttribute("aria-selected", "true");
+		$("qty").max = item.count;
+		$("qty").value = 1;  // a new pick starts at one
+		$("qtyMax").textContent = "of " + item.count;
+		$("hint").textContent = "Giving: " + item.name;
+		$("accept").disabled = false;
+	}
+
+	function buildPicker(items) {
+		const list = $("list");
+		list.innerHTML = "";
+		items.forEach((it) => {
+			const b = document.createElement("button");
+			b.setAttribute("role", "option");
+			b.setAttribute("aria-selected", "false");
+			const name = document.createElement("span");
+			name.textContent = it.name + (it.count > 1 ? "  (x" + it.count + ")" : "") + (it.equipped ? "  (equipped)" : "");
+			const meta = document.createElement("span");
+			meta.className = "meta";
+			meta.textContent = it.id === "F" ? "" : it.value + " gold";
+			b.appendChild(name);
+			b.appendChild(meta);
+			b.addEventListener("click", () => select(it, b));
+			list.appendChild(b);
+		});
+	}
+
+	window.mundaneMattersShow = function (o) {
+		$("title").textContent = o.title || "Offer";
+		$("npc").textContent = o.npc || "";
+		$("detail").textContent = o.detail || "";
+		$("acceptText").textContent = o.accept || "Accept";
+		$("declineText").textContent = o.decline || "Decline";
+		picking = Array.isArray(o.items) && o.items.length > 0;
+		selected = null;
+		$("picker").classList.toggle("on", picking);
+		if (picking) {
+			buildPicker(o.items);
+			$("qty").value = 1;
+			$("qtyMax").textContent = "";
+			$("hint").textContent = "Click an item, then Give.";
+			$("list").scrollTop = 0;
+		}
+		// Keyboard hints only where keys work (yes/no popups).
+		$("acceptKey").style.display = picking ? "none" : "";
+		$("declineKey").textContent = picking ? "Esc" : "Tab";
+		const paid = o.showPrice !== false && !picking;
+		$("priceRow").style.display = paid ? "" : "none";
+		$("purse").style.display = paid ? "" : "none";
+		$("price").textContent = o.price;
+		const short = paid && o.gold < o.price;
+		$("purse").textContent = "You carry " + o.gold + " gold";
+		$("purse").classList.toggle("short", short);
+		$("accept").disabled = short || picking;  // a picker needs a choice first
+		// No timer (gifts): it waits for the player.
+		timed = (o.seconds || 0) > 0;
+		$("timer").classList.toggle("off", !timed);
+		$("bar").style.transform = "scaleX(1)";
+		duration = Math.max(3, o.seconds || 15) * 1000;
+		deadline = performance.now() + duration;
+		open = true;
+		shownAt = performance.now();
+		keyTimes = [];
+		$("card").classList.add("open");
+		cancelAnimationFrame(frame);
+		if (timed) frame = requestAnimationFrame(tick);
+	};
+
+	$("accept").addEventListener("click", () => {
+		if ($("accept").disabled) return;
+		if (picking) {
+			if (!selected) return;
+			const n = Math.min(Math.max(1, parseInt($("qty").value || "1", 10)), selected.count);
+			answer("pick:" + selected.id + ":" + n);
+			return;
+		}
+		answer("accept");
+	});
+	$("decline").addEventListener("click", () => answer("decline"));
+	document.addEventListener("keydown", (e) => {
+		if (!open) return;
+		// Picker: mouse only (the quantity box takes typing); Escape still backs out.
+		if (picking) {
+			if (e.key === "Escape" && performance.now() - shownAt >= GRACE_MS) { e.preventDefault(); answer("decline"); }
+			return;
+		}
+		const now = performance.now();
+		keyTimes = keyTimes.filter((t) => now - t < 1000);
+		keyTimes.push(now);
+		if (now - shownAt < GRACE_MS || keyTimes.length > 2) { e.preventDefault(); return; }
+		const k = e.key.toLowerCase();
+		if ((k === "e" || k === "enter") && !$("accept").disabled) { e.preventDefault(); answer("accept"); }
+		else if (k === "tab" || k === "escape" || k === "r") { e.preventDefault(); answer("decline"); }
+	});
+</script>
+</body>
+</html>

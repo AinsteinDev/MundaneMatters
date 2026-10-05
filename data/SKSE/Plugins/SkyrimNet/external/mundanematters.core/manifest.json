@@ -1,0 +1,14 @@
+{
+  "author": "Ainstein",
+  "description": "Everyday life for SkyrimNet NPCs: trade, inn rooms, training, shared meals, gifts, guest rights, follow/escort and promises they actually keep, all from natural speech. Requires the Mundane Matters native plugin (MundaneMatters.dll).",
+  "icon": "handshake",
+  "id": "mundanematters.core",
+  "min_skyrimnet_version": "0.25.0",
+  "mods": [],
+  "nsfw": false,
+  "tagline": "Everyday life for SkyrimNet NPCs",
+  "tags": ["services", "npc", "economy", "immersion"],
+  "title": "Mundane Matters",
+  "type": "bundle",
+  "version": "0.2.0"
+}

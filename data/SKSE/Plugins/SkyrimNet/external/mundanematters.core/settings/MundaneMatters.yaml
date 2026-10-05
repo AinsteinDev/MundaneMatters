@@ -1,0 +1,177 @@
+plugin:
+  name: MundaneMatters
+  version: "0.2.0"
+  description: "Everyday life for SkyrimNet NPCs: trade, rooms, meals, gifts, guests and promises they actually keep"
+  icon: "\U0001F91D"
+
+variants:
+  - name: mundanematters_classifier
+    description: "Mundane Matters classifier (one small JSON call per player exchange). Pick a FAST, cheap model that writes clean JSON; uses the base config if not overridden."
+
+schema:
+  fields:
+    # ── Features ──
+    - name: "Trade"
+      path: "features.trade"
+      type: "bool"
+      description: "Open the barter menu when the player asks a merchant to trade, in any wording."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Inn Rooms"
+      path: "features.rent_room"
+      type: "bool"
+      description: "Rent the inn room (vanilla price, bed yours for the night) when the player asks an innkeeper for a room and they agree."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Training"
+      path: "features.training"
+      type: "bool"
+      description: "Open the training menu when the player asks a trainer to teach them."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Follow"
+      path: "features.follow"
+      type: "bool"
+      description: "When the player asks someone to come along (in any wording) and they agree, they follow (SeverActions casual follow)."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Escort"
+      path: "features.escort"
+      type: "bool"
+      description: "When the player asks someone to take them somewhere and they agree, they walk there ahead of the player and wait (SeverActions travel)."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Local Escorts Only"
+      path: "features.escort_local_only"
+      type: "bool"
+      description: "People only lead you around their own hold. A trip to another hold (Riften to Whiterun) needs a companion, someone already going there, or someone going home."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Confirm Follow & Escort"
+      path: "features.confirm_move"
+      type: "bool"
+      description: "Show an Accept/Decline popup before someone starts following you or leading you somewhere, so a misread line never sends them off. (Escort skips it when SeverActions' own travel popup will ask.)"
+      defaultValue: true
+      category: "Features"
+
+    - name: "Gifts"
+      path: "features.gifts"
+      type: "bool"
+      description: "When you hand something to an NPC in your own words and they accept, it really moves from your inventory to theirs (only what you actually carry)."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Confirm Gifts"
+      path: "features.confirm_gift"
+      type: "bool"
+      description: "Accept/Decline popup showing exactly what leaves your inventory before a gift moves."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Gift Menu"
+      path: "features.gift_menu"
+      type: "bool"
+      description: "For an unnamed gift ('I have something for you'), open a picker listing your inventory so you choose what to give (the vanilla gift menu without PrismaUI)."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Gifts Improve Relationship"
+      path: "features.gift_disposition"
+      type: "bool"
+      description: "Rarely, a gift can raise their relationship one step: only the first gift in a week counts, it must be really good for them (worth 100+, or something that suits them), they must be genuinely pleased, and gifts can do this only once per NPC, never past Confidant."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Permission To Take"
+      path: "features.allow_take"
+      type: "bool"
+      description: "When someone says you may take something lying in their home ('go ahead, take the wine'), that object becomes yours to pick up without stealing. Homes only, their own things only; counts against their generosity."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Shared Meals"
+      path: "features.share_meal"
+      type: "bool"
+      description: "Ask a friend (or closer) to eat together and they sit at a table, share a dish with you and invite you to join. Hospitality: not counted against their generosity. Once per ~6 hours with each person."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Promises"
+      path: "features.promises"
+      type: "bool"
+      description: "NPCs actually hand over items, gold and beds they promise in dialogue."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Confirm Paid Services"
+      path: "features.confirm"
+      type: "bool"
+      description: "Show an Accept/Decline popup (PrismaUI) before paying for a service such as an inn room. The NPC reacts to your choice."
+      defaultValue: true
+      category: "Features"
+
+    # ── Tuning ──
+    - name: "Intent Confidence"
+      path: "tuning.min_confidence"
+      type: "float"
+      description: "Minimum classifier confidence before a service opens (0-1)."
+      defaultValue: 0.6
+      min: 0.0
+      max: 1.0
+      category: "Tuning"
+
+    - name: "Popup Seconds"
+      path: "tuning.confirm_seconds"
+      type: "int"
+      description: "How long the Accept/Decline popup waits before counting as Decline."
+      defaultValue: 15
+      min: 5
+      max: 60
+      category: "Tuning"
+
+    - name: "Max Promised Gold"
+      path: "tuning.max_promise_gold"
+      type: "int"
+      description: "Cap on gold an NPC can hand over from one promise (they also never give more than they carry plus this allowance)."
+      defaultValue: 200
+      min: 0
+      max: 5000
+      category: "Tuning"
+
+    - name: "Max Promised Item Value"
+      path: "tuning.max_promise_item_value"
+      type: "int"
+      description: "A promised item the NPC doesn't carry (soup, bread, a potion) is fetched for them only if worth at most this much. Gear always has to come from their own inventory."
+      defaultValue: 100
+      min: 0
+      max: 2000
+      category: "Tuning"
+
+    - name: "Bed Loan Hours"
+      path: "tuning.bed_hours"
+      type: "int"
+      description: "How long an offered bed stays the player's before ownership returns to the NPC."
+      defaultValue: 24
+      min: 1
+      max: 168
+      category: "Tuning"
+
+    - name: "Run Self-Test"
+      path: "debug.self_test"
+      type: "bool"
+      description: "Switch ON (in game) to send ~37 test exchanges through your classifier model; results land in MundaneMatters.log (SELFTEST lines) and a notification shows the score. Classification only: nothing happens in your game. Switch off afterwards."
+      defaultValue: false
+      category: "Debug"
+
+    - name: "Debug Notifications"
+      path: "debug.notify"
+      type: "bool"
+      description: "Show on-screen notifications for every classifier decision."
+      defaultValue: true
+      category: "Debug"

@@ -1,0 +1,10 @@
+{% if render_mode == "full" or render_mode == "static" %}
+{% if actorUUID and isValidActor(actorUUID) %}
+{% set mundaneMattersFacts = mundanematters_bio(actorUUID) %}
+{% if mundaneMattersFacts != "" %}
+### What {{ decnpc(actorUUID).name }} really offers and owes
+{{ mundaneMattersFacts }}
+Promises above are real: they will be carried out in game, so speak consistently with them.
+{% endif %}
+{% endif %}
+{% endif %}

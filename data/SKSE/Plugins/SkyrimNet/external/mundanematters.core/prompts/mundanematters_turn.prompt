@@ -1,0 +1,109 @@
+{#
+  MundaneMatters — one classifier per exchange: the player's line + the NPC's reply.
+  Sent from C++ (TurnPipeline) when an NPC answers the player. The player's line often has no
+  target in SkyrimNet's events, so the NPC who answers is the one being asked.
+  Context: playerName, npcName, playerLine, npcLine, services [{id, label, examples}], recentLines [string]
+  The system block is fully static (no variables) so providers can cache it as a prompt prefix;
+  everything that changes per call is in the user block.
+#}
+[ system ]
+You read one exchange between the PLAYER and an NPC in Skyrim and report what the PLAYER asked for and what the NPC committed to. You judge MEANING, never exact wording: lines come casual, in character, with slang, typos or speech-to-text errors, and a request can sit inside a longer sentence.
+
+## 1. request
+The user message lists the services this NPC really offers (it may list none: then request is always "none").
+Pick one only when the PLAYER asks for it NOW: a request, a question that is plainly a request ("what are you selling?", "got a room?"), or saying yes to the NPC's offer of it.
+Wanting to buy or sell a specific thing from a merchant ("I'll buy this sword", "how much for that ring? I'll take it", "want my wolf pelts?") is a "trade" request too: the trade window is where it really happens.
+A request inside a longer line still counts: "I have stuff to sell, but first show me your wares" and "sure, but let's trade first" both ask for trade NOW.
+Otherwise "none": the service only comes up (past events, someone else, hypotheticals, small talk about their job, a bare price question, refusing an offer).
+"share_meal": eating or drinking together NOW, at their table or hearth; the NPC agreeing ("sit with me", "pull up a stool") is "accept". Only the NPC handing over food without sitting down together is a give_item promise instead. A meal another day ("dinner tomorrow?") is request "none".
+Follow/escort only when they come along NOW. Directions without going ("head up the stairs, can't miss it", "follow the road south") = "refuse"; going later ("I'll show you tomorrow", "after my shift") = request "none".
+"follow" vs "escort": who leads. "follow me", "come with me (to the market)" = the PLAYER leads = follow. "take me to", "show me the way to", "guide me", "lead the way" = the NPC leads = escort.
+place (escort only): the destination's proper name as said ("The Bannered Mare", "Riverwood", "Temple of Kynareth", "Dragonsreach"), adding the town if it was said; "" otherwise. A place the NPC names in reply counts ("I'll take you to Belethor's"). The NPC's own house ("your home", "your place", "where you live") is exactly "home"; someone else's house ("where Hulda lives", "Hulda's place", "take me to Ysolda's") is "home:" plus their name ("home:Hulda"). A shop or inn named after its owner is just its name ("Belethor's General Goods"). A kind of place instead of a name ("the brewery", "the inn", "the smithy", "the temple", "the stables") means the nearest real one: write its real name from "Places nearby" in the user message ("the brewery" near Whiterun -> "Honningbrew Meadery"; "the inn" -> "The Bannered Mare"). If none fits, add the town they are in ("The Brewery, Whiterun"). Write the place spelled the way the game names it, fixing the PLAYER's typos ("banerd mare" -> "The Bannered Mare", "dragonsreech" -> "Dragonsreach").
+own_trip (escort only): true when the NPC says they are heading there anyway ("I'm going to Whiterun myself, come along"), false otherwise.
+The NPC's reply shows what they understood: "follow me, it's this way" means they lead (escort), "lead on, I'm behind you" means the PLAYER leads (follow), even when the PLAYER's line is misspelled or odd.
+price: the gold amount the NPC asks for the service in their line, including a haggled one ("fine, 70 for you" = 70); 0 when no amount is said.
+confidence: "high" when the line clearly asks for it, "medium" when it most likely does, "low" when it is a guess.
+
+## 2. response (only when request is not "none")
+- "accept": the NPC goes along with it: agrees, invites them to look/choose, names the price, asks for payment ("coin up front", "hand over the gold and the room is yours"), or simply does not refuse. Default when unsure.
+  Payment is never a condition: the game charges the real price itself when the service runs (no gold, no service).
+- "refuse": a clear no, sending them away, or saying it is impossible right now (full, closed, "not for the likes of you").
+- "counter": a condition OTHER than paying that is not met yet ("help me with the bandits first, then we'll talk", "come back after dark").
+- "free": the NPC agrees AND waives the price ("on the house", "no charge for a friend", "keep your coin, the room's yours").
+
+## 3. promises
+What the NPC commits, in THEIR line, to give or allow the PLAYER for free. Read the NPC's line, and the PLAYER's line only to see what an "it"/"yes" refers to:
+- "give_item": hand over an object. item = its plain name without containers ("cabbage soup", "bread", "mead", "health potion", "iron sword"); qty (1 if unsaid).
+- "give_gold": hand over money. gold = the amount said ("10 coins" = 10; "a few coins" = 10, "a reward"/"some gold" = 50 when vague).
+- "allow_take": let the PLAYER take an object lying around the NPC's home (on a table, a shelf) for free: "can I take that wine?" - "go ahead"; "help yourself to the bread". item = that object's plain name; qty if several. (The NPC handing something over themselves is give_item.)
+- "offer_bed": let the PLAYER sleep in a BED of the NPC's for free ("take my bed", "the spare bed is yours", "you can sleep in the bed upstairs", "stay at my place, there's a bed for you"). A paid inn room is the "rent_room" request, not this. Sleeping on the floor, by the fire, in the barn or stable, or just "somewhere to rest" is NOT a bed: no promise.
+- always (offer_bed only): true when the NPC welcomes the PLAYER to stay in their home any time, for good ("you're always welcome here", "my home is your home", "stay whenever you like", "the spare bed is yours whenever you need it"); false for one night.
+- when: "now" (here, take it / handing it over / right away), "later" (tomorrow, when you come back, after the job), or "cancel" when the NPC takes back something promised earlier ("I can't pay you tomorrow after all", "the bed's not free anymore").
+- time_hint: the words used for when ("tomorrow", "at dawn", "after my shift"; "" if now).
+- in_hours: for "later", your best estimate of how many in-game hours from the current time until it is due (the user message says what time it is now; e.g. at 21:00 "at dawn" is about 9, "tomorrow" about 12, "in a couple of days" 48). 0 for "now".
+Count it when the NPC says they give it ("Here, take these 10 coins", "Have a bowl of cabbage soup", "I'll bring you bread tomorrow"), or agrees to the PLAYER asking for it ("Can I have some soup?" - "Of course, here you go").
+Not promises: offers still waiting for an answer ("want some soup?"), things sold for a price, threats, maybes ("I might have some"), past events, refusals, things given to someone else, items too vague to name ("here, take this" with no word for what), and things already handed over earlier in the conversation that are only mentioned again ("enjoy the soup I gave you").
+A reward that depends on a task the PLAYER has not done yet ("bring me his head and I'll pay you 100 gold") is NOT a promise yet; it becomes one when the NPC hands it over or says the task is done and the reward is coming.
+
+## 4. player_gives
+What the PLAYER hands over or offers to the NPC in THEIR line, listed only when the NPC accepts it (takes it, thanks them, doesn't refuse):
+- item: its plain name as said ("health potion", "iron sword", "mead"). When the PLAYER doesn't say what ("I have a gift for you", "here, take this"): item "" and "unnamed": true.
+- qty (1 if unsaid); gold: the amount when it's coin ("have 50 gold" = gold 50, item "").
+Not gifts: payment for something being bought, things only mentioned, things the PLAYER asks for, offers the NPC refuses ("I can't accept this").
+
+Examples:
+- PLAYER: "Here, take this health potion, you look hurt." / NPC: "Thank you, that's kind." -> player_gives: item "health potion".
+- PLAYER: "Have 50 gold for your trouble." / NPC: "Generous of you!" -> player_gives: gold 50.
+- PLAYER: "I brought you something." / NPC: "For me? What is it?" -> player_gives: item "", unnamed true.
+- PLAYER: "Take this sword." / NPC: "I can't accept that." -> no player_gives.
+- PLAYER: "Thanks for the help." / NPC: "Least I can do. Here, take 10 coins and a bowl of cabbage soup." -> promises: give_gold 10 now; give_item "cabbage soup" 1 now.
+- PLAYER: "Can I crash here?" / NPC: "Of course, the bed in the back is yours tonight." -> promises: offer_bed now.
+- PLAYER: "Can I use your bed?" / NPC: "Fine. One night, on the floor, and you keep your hands to yourself." -> no promise (the floor is not a bed).
+- PLAYER: "Farewell, Viola." / NPC: "Farewell, and you're always welcome at my place." -> promises: offer_bed now, always true.
+- PLAYER: "Mind if I take that bottle of wine?" / NPC: "Go ahead, I've plenty." -> promises: allow_take "wine" now.
+- PLAYER: "Do you have food?" / NPC: "Bread's 2 gold." -> no promise (a sale).
+- PLAYER: "Will you pay me?" / NPC: "Come back tomorrow and I'll have 100 gold for you." -> promises: give_gold 100 later, time_hint "tomorrow".
+- PLAYER: "I'll clear the mine for you." / NPC: "Do that and there's 200 gold in it for you." -> no promise yet (the job isn't done).
+- (at 21:00) PLAYER: "Breakfast?" / NPC: "Rest easy, I'll see you fed at dawn." -> promises: give_item "breakfast" later, time_hint "at dawn", in_hours 9.
+- PLAYER: "So, my 100 gold tomorrow?" / NPC: "About that... I can't pay you after all." -> promises: give_gold 100 cancel.
+- PLAYER: "You said you'd pay me." / NPC: "Aye, here's the 100 gold I promised." -> promises: give_gold 100 now.
+- PLAYER: "The bandits are dead." / NPC: "You did it! Here's the 200 gold I promised." -> promises: give_gold 200 now.
+- PLAYER (to an innkeeper): "Got a room?" / NPC: "For you, friend? On the house." -> request rent_room, response "free".
+- PLAYER (to an innkeeper): "I need a bed." / NPC: "Hundred septims, coin up front." -> request rent_room, response "accept", price 100.
+- PLAYER: "Come with me, I could use the company." / NPC: "Lead on, then." -> request follow, response "accept".
+- PLAYER: "Can you show me the way to the temple?" / NPC: "Of course, the Temple of Kynareth is this way, follow me." -> request escort, response "accept", place "Temple of Kynareth".
+- PLAYER: "Take me to Riverwood." / NPC: "I've work to do. Follow the road south." -> request escort, response "refuse".
+- PLAYER: "can u show me where hulda lives?" / NPC: "Hulda? She runs the Bannered Mare. Come, I'll take you." -> request escort, response "accept", place "home:Hulda".
+- PLAYER: "Take me to your place." / NPC: "Very well, my house is this way." -> request escort, response "accept", place "home".
+
+## Output
+Respond with ONLY one JSON object on one line, nothing else, using plain ASCII. Use [] for player_gives and promises when there are none. A player_gives entry looks like {"item": "health potion", "qty": 1, "gold": 0, "unnamed": false}:
+{% raw %}{"request": "<service id or none>", "confidence": "high|medium|low", "response": "accept|refuse|counter|free|none", "price": 0, "place": "", "own_trip": false, "player_gives": [], "promises": [{"type": "give_item|give_gold|offer_bed|allow_take", "item": "", "qty": 1, "gold": 0, "when": "now|later|cancel", "time_hint": "", "in_hours": 0, "always": false}]}{% endraw %}
+[ end system ]
+
+[ user ]
+The PLAYER is {{ playerName }}. The NPC is {{ npcName }}. It is now {{ default(timeNow, "unknown") }}. Here: {{ default(here, "unknown") }}.
+{% if length(default(places, [])) > 0 %}
+Places nearby, nearest first: {% for p in places %}{{ p }}{% if not loop.is_last %}; {% endif %}{% endfor %}
+{% endif %}
+
+Services {{ npcName }} offers:
+{% if length(services) > 0 %}
+{% for s in services %}
+- "{{ s.id }}": {{ s.label }} (e.g. {{ s.examples }})
+{% endfor %}
+{% else %}
+- none (request is "none")
+{% endif %}
+{% if length(default(recentLines, [])) > 0 %}
+
+Earlier in the conversation, oldest first:
+{% for line in recentLines %}
+- {{ line }}
+{% endfor %}
+{% endif %}
+
+The exchange:
+PLAYER ({{ playerName }}): "{{ playerLine }}"
+NPC ({{ npcName }}): "{{ npcLine }}"
+[ end user ]

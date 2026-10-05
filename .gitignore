@@ -1,0 +1,8 @@
+build/
+vcpkg_installed/
+data/SKSE/Plugins/*.dll
+data/SKSE/Plugins/*.pdb
+.vs/
+*.user
+build.log
+dist/
