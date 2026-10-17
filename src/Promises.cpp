@@ -453,7 +453,7 @@ namespace MundaneMatters::Promises
 			// hands. Checked first: the loan itself was a transfer moments ago.
 			if (!p.loan && loans) {
 				if (auto kept = Loans::LetKeep(npc, p.item); !kept.empty()) {
-					Game::Notify(std::format("{} says you can keep the {}.", npc->GetName(), kept));
+					Game::Notify(std::format("{} says you can keep the {}.", Game::NameOf(npc), kept));
 					return Outcome::kKept;
 				}
 			}
@@ -461,8 +461,8 @@ namespace MundaneMatters::Promises
 			if (auto* got = AlreadyGiven(npc, [&](RE::TESForm* f) { return f && (meal ? IsFood(f) : Score(wanted, f->GetName()) > 0.0); })) {
 				// Handed over moments ago (a kept promise, or another mod): not a second one. Say so,
 				// as the NPC may talk as if they were handing it over now.
-				logger::info("give_item '{}': {} already handed it over moments ago", p.item, npc->GetName());
-				Game::Notify(std::format("{} already gave you {} (check your inventory).", npc->GetName(), got->GetName()));
+				logger::info("give_item '{}': {} already handed it over moments ago", p.item, Game::NameOf(npc));
+				Game::Notify(std::format("{} already gave you {} (check your inventory).", Game::NameOf(npc), got->GetName()));
 				return Outcome::kKept;
 			}
 			bool loan = p.loan && loans;
@@ -481,8 +481,8 @@ namespace MundaneMatters::Promises
 				}
 			}
 			if (!item) {
-				logger::info("give_item '{}': no matching item for {}", p.item, npc->GetName());
-				Game::Narrate(std::format("{} went to {} {} {}, but realised they didn't have one.", npc->GetName(), loan ? "lend" : "give",
+				logger::info("give_item '{}': no matching item for {}", p.item, Game::NameOf(npc));
+				Game::Narrate(std::format("{} went to {} {} {}, but realised they didn't have one.", Game::NameOf(npc), loan ? "lend" : "give",
 								  player->GetName(), p.item),
 					npc);
 				return Outcome::kImpossible;
@@ -494,8 +494,8 @@ namespace MundaneMatters::Promises
 					if (consumable) {
 						loan = false;
 					} else {
-						logger::info("give_item '{}': {} won't lend {} (too valuable, or armour/weapon)", p.item, npc->GetName(), item->GetName());
-						Game::Narrate(std::format("{} thought twice about it: the {} was too valuable to lend out, friend or not.", npc->GetName(), item->GetName()), npc);
+						logger::info("give_item '{}': {} won't lend {} (too valuable, or armour/weapon)", p.item, Game::NameOf(npc), item->GetName());
+						Game::Narrate(std::format("{} thought twice about it: the {} was too valuable to lend out, friend or not.", Game::NameOf(npc), item->GetName()), npc);
 						return Outcome::kImpossible;
 					}
 				}
@@ -513,8 +513,8 @@ namespace MundaneMatters::Promises
 			}
 			const auto given = fromInventory + conjured;
 			if (given <= 0) {
-				logger::info("give_item '{}': {} has no {} to spare", p.item, npc->GetName(), item->GetName());
-				Game::Narrate(std::format("{} went to {} {} the {}, but realised they didn't have one to spare.", npc->GetName(), loan ? "lend" : "give",
+				logger::info("give_item '{}': {} has no {} to spare", p.item, Game::NameOf(npc), item->GetName());
+				Game::Narrate(std::format("{} went to {} {} the {}, but realised they didn't have one to spare.", Game::NameOf(npc), loan ? "lend" : "give",
 								  player->GetName(), item->GetName()),
 					npc);
 				return Outcome::kImpossible;
@@ -522,14 +522,14 @@ namespace MundaneMatters::Promises
 
 			const std::string name = item->GetName();
 			if (loan) {
-				logger::info("give_item '{}' -> {} x{} lent by {}", p.item, name, given, npc->GetName());
+				logger::info("give_item '{}' -> {} x{} lent by {}", p.item, name, given, Game::NameOf(npc));
 				Loans::Borrow(npc, item, given, p.backInHours, true);
 				return Outcome::kKept;
 			}
 			logger::info("give_item '{}' -> {} x{} ({} from {}) from {}", p.item, name, given, fromInventory,
-				fromInventory == 0 ? "nowhere" : own.from == npc ? "their pockets" : "their shop stock", npc->GetName());
-			Game::Notify(given > 1 ? std::format("{} gave you {} ({}).", npc->GetName(), name, given) : std::format("{} gave you {}.", npc->GetName(), name));
-			Remember(npc, std::format("{} gave {} {}{} as promised.", npc->GetName(), player->GetName(), given > 1 ? std::format("{} ", given) : "", name));
+				fromInventory == 0 ? "nowhere" : own.from == npc ? "their pockets" : "their shop stock", Game::NameOf(npc));
+			Game::Notify(given > 1 ? std::format("{} gave you {} ({}).", Game::NameOf(npc), name, given) : std::format("{} gave you {}.", Game::NameOf(npc), name));
+			Remember(npc, std::format("{} gave {} {}{} as promised.", Game::NameOf(npc), player->GetName(), given > 1 ? std::format("{} ", given) : "", name));
 			return Outcome::kKept;
 		}
 
@@ -538,7 +538,7 @@ namespace MundaneMatters::Promises
 			auto* player = Game::Player();
 			auto* gold = Game::Gold();
 			if (AlreadyGiven(npc, [gold](RE::TESForm* f) { return f == gold; })) {
-				logger::info("give_gold: {} already paid (another mod)", npc->GetName());
+				logger::info("give_gold: {} already paid (another mod)", Game::NameOf(npc));
 				return Outcome::kKept;
 			}
 			const auto cap = static_cast<std::int32_t>(SkyrimNet::ConfigFloat("tuning.max_promise_gold", 200.0f));
@@ -557,9 +557,9 @@ namespace MundaneMatters::Promises
 			if (amount > fromPurse) {
 				player->AddObjectToContainer(gold, nullptr, amount - fromPurse, npc);
 			}
-			logger::info("give_gold {} (promised {}, {} from purse) from {}", amount, p.gold, fromPurse, npc->GetName());
-			Game::Notify(std::format("{} gave you {} gold.", npc->GetName(), amount));
-			Remember(npc, std::format("{} paid {} {} gold as promised.", npc->GetName(), player->GetName(), amount));
+			logger::info("give_gold {} (promised {}, {} from purse) from {}", amount, p.gold, fromPurse, Game::NameOf(npc));
+			Game::Notify(std::format("{} gave you {} gold.", Game::NameOf(npc), amount));
+			Remember(npc, std::format("{} paid {} {} gold as promised.", Game::NameOf(npc), player->GetName(), amount));
 			return Outcome::kKept;
 		}
 
@@ -707,7 +707,7 @@ namespace MundaneMatters::Promises
 				static std::unordered_map<RE::FormID, RE::TESObjectCELL*> said;
 				if (said[npc->GetFormID()] != cell) {
 					said[npc->GetFormID()] = cell;
-					logger::info("bed: {} keeps a business here ({} guest beds); only their own bed could be lent", npc->GetName(), householdBeds);
+					logger::info("bed: {} keeps a business here ({} guest beds); only their own bed could be lent", Game::NameOf(npc), householdBeds);
 				}
 				return nullptr;
 			}
@@ -728,7 +728,7 @@ namespace MundaneMatters::Promises
 				if (lastLogged[npc->GetFormID()] != cell) {
 					lastLogged[npc->GetFormID()] = cell;
 					if (IsHomeOf(cell, npc)) {
-						Game::Notify(std::format("There's no bed here {} can lend you.", npc->GetName()));
+						Game::Notify(std::format("There's no bed here {} can lend you.", Game::NameOf(npc)));
 					}
 					std::string beds;
 					int count = 0;
@@ -750,7 +750,7 @@ namespace MundaneMatters::Promises
 					const auto* cellOwner = cell ? cell->GetOwner() : nullptr;
 					auto* home = npc->GetEditorLocation1();
 					logger::info("offer_bed: no bed of {} (base {:08X}) here; cell {} owner {}, her home: {} (home location {}, this {}); {} beds{}{}",
-						npc->GetName(), npc->GetActorBase() ? npc->GetActorBase()->GetFormID() : 0,
+						Game::NameOf(npc), npc->GetActorBase() ? npc->GetActorBase()->GetFormID() : 0,
 						cell ? (cell->IsInteriorCell() ? "interior" : "exterior") : "none",
 						cellOwner ? cellOwner->GetName() : "none", IsHomeOf(cell, npc) ? "yes" : "no",
 						home ? home->GetName() : "none", cell && cell->GetLocation() ? cell->GetLocation()->GetName() : "none",
@@ -761,8 +761,8 @@ namespace MundaneMatters::Promises
 			// "A day or two": a longer stay when one was given (a grant), else the usual night.
 			const float hours = p.backInHours > 0.0f ? p.backInHours : SkyrimNet::ConfigFloat("tuning.bed_hours", 24.0f);
 			Ledger::LoanBed(npc, bed, hours);
-			Game::Notify(std::format("You may sleep in {}'s bed.", npc->GetName()));
-			Remember(npc, std::format("{} let {} sleep in their bed.", npc->GetName(), Game::Player()->GetName()));
+			Game::Notify(std::format("You may sleep in {}'s bed.", Game::NameOf(npc)));
+			Remember(npc, std::format("{} let {} sleep in their bed.", Game::NameOf(npc), Game::Player()->GetName()));
 			return Outcome::kKept;
 		}
 	}
@@ -831,12 +831,12 @@ namespace MundaneMatters::Promises
 				return;  // not the first real gift of the window, or the one step is already spent
 			}
 			if (!ReallyGood(npc, item, value)) {
-				logger::info("gift: {} - not special enough to change how they feel ({} worth {})", npc->GetName(), what, value);
+				logger::info("gift: {} - not special enough to change how they feel ({} worth {})", Game::NameOf(npc), what, value);
 				return;
 			}
 			std::scoped_lock l(g_lock);
 			g_awaiting[id] = { what, Clock::now() + 45s };
-			logger::info("gift: waiting for {}'s reaction to {}", npc->GetName(), what);
+			logger::info("gift: waiting for {}'s reaction to {}", Game::NameOf(npc), what);
 		}
 
 		void RaiseOneStep(RE::FormID id)
@@ -854,30 +854,30 @@ namespace MundaneMatters::Promises
 			const auto found = rel ? kRank.find(rel->level.get()) : kRank.end();
 			const int rank = found != kRank.end() ? found->second : 0;
 			if (rank >= 2) {
-				logger::info("gift: {} is already confidant or closer; no change", npc->GetName());
+				logger::info("gift: {} is already confidant or closer; no change", Game::NameOf(npc));
 				return;
 			}
 			Papyrus::CallMethod(npc, "Actor", "SetRelationshipRank", nullptr, static_cast<RE::Actor*>(Game::Player()), static_cast<std::int32_t>(rank + 1));
 			Ledger::MarkWarmed(id);
-			logger::info("gift: {} relationship {} -> {} (the one step gifts can give)", npc->GetName(), rank, rank + 1);
-			Game::DebugNotify(std::format("{} thinks better of you.", npc->GetName()));
+			logger::info("gift: {} relationship {} -> {} (the one step gifts can give)", Game::NameOf(npc), rank, rank + 1);
+			Game::DebugNotify(std::format("{} thinks better of you.", Game::NameOf(npc)));
 		}
 
 		// After the handover: the NPC reacts to what they really got, remembers it, maybe warms up.
 		void Received(RE::Actor* npc, const std::string& what, std::int32_t value, bool alreadySpoke, RE::TESBoundObject* mainItem)
 		{
 			const std::string player = Game::Player()->GetName();
-			logger::info("gift: {} gave {} {} (worth {})", player, npc->GetName(), what, value);
-			Game::Notify(std::format("You gave {} {}.", npc->GetName(), what));
+			logger::info("gift: {} gave {} {} (worth {})", player, Game::NameOf(npc), what, value);
+			Game::Notify(std::format("You gave {} {}.", Game::NameOf(npc), what));
 			if (!alreadySpoke) {
-				Game::Narrate(std::format("{} gave {} {}.", player, npc->GetName(), what), npc);
+				Game::Narrate(std::format("{} gave {} {}.", player, Game::NameOf(npc), what), npc);
 			} else {
-				SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} gave {} {}.", player, npc->GetName(), what), 0.4f);
+				SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} gave {} {}.", player, Game::NameOf(npc), what), 0.4f);
 			}
 			// Giving back what was taken, or a peace offering, is making amends: not a favour that
 			// earns warmth or a bond.
 			if (Trust::MakingAmends(npc->GetFormID())) {
-				logger::info("gift: {} is making amends with {}; no warmth or bond from it", player, npc->GetName());
+				logger::info("gift: {} is making amends with {}; no warmth or bond from it", player, Game::NameOf(npc));
 				return;
 			}
 			ConsiderWarmth(npc, mainItem, value, what);
@@ -950,17 +950,17 @@ namespace MundaneMatters::Promises
 				const std::string player = Game::Player()->GetName();
 				std::string text;
 				if (!returned.empty()) {
-					text += std::format("{} gave back the {} {} had lent them. ", player, returned, npc->GetName());
+					text += std::format("{} gave back the {} {} had lent them. ", player, returned, Game::NameOf(npc));
 				}
 				if (!paid.empty()) {
-					text += std::format("{} paid {} {}. ", player, npc->GetName(), paid);
+					text += std::format("{} paid {} {}. ", player, Game::NameOf(npc), paid);
 				}
 				if (!lent.empty()) {
-					text += std::format("{} lent {} their {}, to have back when they ask. ", player, npc->GetName(), lent);
+					text += std::format("{} lent {} their {}, to have back when they ask. ", player, Game::NameOf(npc), lent);
 				}
 				if (!promised.empty()) {
-					text += promisedEarly ? std::format("{} handed {} the {} they had promised - well before they said they would. ", player, npc->GetName(), promised) :
-					                        std::format("{} handed {} the {}, just as they had promised. ", player, npc->GetName(), promised);
+					text += promisedEarly ? std::format("{} handed {} the {} they had promised - well before they said they would. ", player, Game::NameOf(npc), promised) :
+					                        std::format("{} handed {} the {}, just as they had promised. ", player, Game::NameOf(npc), promised);
 				}
 				if (text.empty()) {
 					if (!gift.empty()) {
@@ -969,7 +969,7 @@ namespace MundaneMatters::Promises
 					return;
 				}
 				if (!gift.empty()) {
-					text += std::format("{} also gave {} {}.", player, npc->GetName(), gift + extra);
+					text += std::format("{} also gave {} {}.", player, Game::NameOf(npc), gift + extra);
 				}
 				if (quiet) {
 					SkyrimNet::AddMemory(npc->GetFormID(), text, 0.4f);
@@ -999,7 +999,7 @@ namespace MundaneMatters::Promises
 			const std::string decline = Game::Pick({ "On second thought, I'll keep it.", "Actually, never mind.", "Hm, maybe another time." });
 			Confirm::Offer offer;
 			offer.title = "Give";
-			offer.npc = npc->GetName();
+			offer.npc = Game::NameOf(npc);
 			offer.detail = detail;
 			// Coin: SeverActions may be taking it already (CollectPayment, a loan with its debt popup).
 			if (detail.find(" gold") != std::string::npos) {
@@ -1047,7 +1047,7 @@ namespace MundaneMatters::Promises
 					g_giftSnapshot[obj] = count;
 				}
 			}
-			logger::info("gift: opening the gift menu for {} ({} kinds of item carried)", npc->GetName(), g_giftSnapshot.size());
+			logger::info("gift: opening the gift menu for {} ({} kinds of item carried)", Game::NameOf(npc), g_giftSnapshot.size());
 			Papyrus::CallMethod(npc, "Actor", "ShowGiftMenu", nullptr, false, static_cast<RE::BGSListForm*>(nullptr), false, false);
 		}
 
@@ -1060,7 +1060,7 @@ namespace MundaneMatters::Promises
 			}
 			Confirm::Offer offer;
 			offer.title = "Give";
-			offer.npc = npc->GetName();
+			offer.npc = Game::NameOf(npc);
 			offer.detail = "Pick something to give";
 			offer.showPrice = false;
 			offer.seconds = 0;  // take your time choosing
@@ -1130,12 +1130,12 @@ namespace MundaneMatters::Promises
 				if (after < before && Game::ItemCount(npc, obj) > 0) {
 					given[obj->GetFormID()] = (std::min)(before - after, Game::ItemCount(npc, obj));
 				} else if (after < before) {
-					logger::info("gift menu: {} left the player's pack but isn't in {}'s", obj->GetName(), npc->GetName());
+					logger::info("gift menu: {} left the player's pack but isn't in {}'s", obj->GetName(), Game::NameOf(npc));
 				}
 			}
 			g_giftSnapshot.clear();
 			for (auto& [id, n] : given) {
-				logger::info("gift menu: {} x{} to {}", RE::TESForm::LookupByID(id) ? RE::TESForm::LookupByID(id)->GetName() : "?", n, npc->GetName());
+				logger::info("gift menu: {} x{} to {}", RE::TESForm::LookupByID(id) ? RE::TESForm::LookupByID(id)->GetName() : "?", n, Game::NameOf(npc));
 			}
 			if (given.empty()) {
 				logger::info("gift: menu closed, nothing given");
@@ -1283,7 +1283,7 @@ namespace MundaneMatters::Promises
 			std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 			SKSE::GetTaskInterface()->AddTask([] { Papyrus::CallStatic("SkyrimNetApi", "PurgeDialogue", nullptr, false); });
 		}).detach();
-		logger::info("gift: \"something for you\" - the picker first, {}'s reply after", npc->GetName());
+		logger::info("gift: \"something for you\" - the picker first, {}'s reply after", Game::NameOf(npc));
 		return true;
 	}
 
@@ -1311,7 +1311,7 @@ namespace MundaneMatters::Promises
 			if (g.gold > 0) {
 				// Checked first: the purse may be empty because another mod just paid it over.
 				if (AlreadyReceived(npc, [gold](RE::TESForm* f) { return f == gold; })) {
-					logger::info("gift: {} already got the coin (another mod)", npc->GetName());
+					logger::info("gift: {} already got the coin (another mod)", Game::NameOf(npc));
 					continue;
 				}
 				const auto purse = Game::ItemCount(player, gold) - coinPlanned;
@@ -1353,7 +1353,7 @@ namespace MundaneMatters::Promises
 						}
 						return false;
 					})) {
-					logger::info("gift: {} already got {} (another mod moved it)", npc->GetName(), got ? got->GetName() : g.item);
+					logger::info("gift: {} already got {} (another mod moved it)", Game::NameOf(npc), got ? got->GetName() : g.item);
 					if (got) {
 						Received(npc, got->GetName(), got->GetGoldValue(), true, got);
 					}
@@ -1364,7 +1364,7 @@ namespace MundaneMatters::Promises
 			}
 			auto* item = m.obj;
 			if (AlreadyReceived(npc, [item](RE::TESForm* f) { return f == item; })) {
-				logger::info("gift: {} already got {} (another mod)", npc->GetName(), item->GetName());
+				logger::info("gift: {} already got {} (another mod)", Game::NameOf(npc), item->GetName());
 				continue;
 			}
 			const auto have = Game::ItemCount(player, item);
@@ -1383,7 +1383,7 @@ namespace MundaneMatters::Promises
 		if (parts.empty()) {
 			if (!missing.empty()) {
 				logger::info("gift: player has none of: {}", missingText);
-				Game::Narrate(std::format("{} reached into their pack for {} to give {}, but didn't have any.", player->GetName(), missingText, npc->GetName()), npc);
+				Game::Narrate(std::format("{} reached into their pack for {} to give {}, but didn't have any.", player->GetName(), missingText, Game::NameOf(npc)), npc);
 			} else if (unnamed) {
 				// Picked already (the picker opened on the player's own words): not a second time.
 				if (auto it = g_earlyGift.find(npc->GetFormID()); it != g_earlyGift.end() && Clock::now() - it->second < 3min) {
@@ -1853,8 +1853,8 @@ namespace MundaneMatters::Promises
 			player->AddObjectToContainer(dish.obj, nullptr, 1, npc);
 		}
 		const std::string name = dish.obj->GetName();
-		Game::Notify(std::format("{} shares {} with you.", npc->GetName(), name));
-		Remember(npc, std::format("{} shared a meal of {} with {}.", npc->GetName(), name, player->GetName()));
+		Game::Notify(std::format("{} shares {} with you.", Game::NameOf(npc), name));
+		Remember(npc, std::format("{} shared a meal of {} with {}.", Game::NameOf(npc), name, player->GetName()));
 		return name;
 	}
 
@@ -2014,7 +2014,7 @@ namespace MundaneMatters::Promises
 				});
 			}
 			if (targets.empty()) {
-				logger::info("allow_take '{}': nothing of {}'s like that here", p.item, npc->GetName());
+				logger::info("allow_take '{}': nothing of {}'s like that here", p.item, Game::NameOf(npc));
 				// What they said isn't there. A tool of their trade they fetch themselves; anything else,
 				// they're told it isn't there, so they can say so.
 				if (auto* tool = Loans::TradeTool(npc, p.item)) {
@@ -2023,14 +2023,14 @@ namespace MundaneMatters::Promises
 					if (loan) {
 						Loans::Borrow(npc, tool, 1, p.backInHours, true);
 					} else {
-						Game::Notify(std::format("{} gave you {}.", npc->GetName(), tool->GetName()));
+						Game::Notify(std::format("{} gave you {}.", Game::NameOf(npc), tool->GetName()));
 					}
 					Game::Narrate(std::format("{} couldn't find the {} where they thought it was, so they fetched one from their workshop and handed it to {}.",
-									  npc->GetName(), tool->GetName(), player->GetName()),
+									  Game::NameOf(npc), tool->GetName(), player->GetName()),
 						npc);
 					return Outcome::kKept;
 				}
-				Game::Narrate(std::format("{} looked for the {} {} meant, but there was none there to take.", Game::Player()->GetName(), p.item, npc->GetName()), npc);
+				Game::Narrate(std::format("{} looked for the {} {} meant, but there was none there to take.", Game::Player()->GetName(), p.item, Game::NameOf(npc)), npc);
 				return Outcome::kImpossible;
 			}
 			for (auto* ref : targets) {
@@ -2046,9 +2046,9 @@ namespace MundaneMatters::Promises
 				}
 			}
 			const auto what = targets.size() > 1 ? std::format("{} ({})", name, targets.size()) : name;
-			logger::info("allow_take '{}' -> {} may be taken from {}'s home", p.item, what, npc->GetName());
+			logger::info("allow_take '{}' -> {} may be taken from {}'s home", p.item, what, Game::NameOf(npc));
 			Game::Notify(std::format("You may take the {}.", what));
-			Remember(npc, std::format("{} let {} take {} from their home.", npc->GetName(), Game::Player()->GetName(), what));
+			Remember(npc, std::format("{} let {} take {} from their home.", Game::NameOf(npc), Game::Player()->GetName(), what));
 			return Outcome::kKept;
 		}
 	}
@@ -2117,9 +2117,9 @@ namespace MundaneMatters::Promises
 			const auto repeatCutoff = Clock::now() - kRepeatWindow;
 			for (auto& k : g_kept) {
 				if (k.npc == npc->GetFormID() && Same(k.promise, p) && (!handout || (k.at >= repeatCutoff && k.promise.gold == p.gold))) {
-					logger::info("{}: '{}' was already kept a moment ago", npc->GetName(), Describe(p));
+					logger::info("{}: '{}' was already kept a moment ago", Game::NameOf(npc), Describe(p));
 					if (handout) {
-						Game::Notify(std::format("{} already gave you {}.", npc->GetName(), Describe(k.promise)));
+						Game::Notify(std::format("{} already gave you {}.", Game::NameOf(npc), Describe(k.promise)));
 					}
 					return Outcome::kKept;
 				}

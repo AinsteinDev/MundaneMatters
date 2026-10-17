@@ -92,7 +92,7 @@ namespace MundaneMatters::Services
 						}
 						auto room = RoomOf(npc);
 						bool ok = room && room->rentedByPlayer;
-						logger::info("rent_room at {} for {} gold -> {}", npc->GetName(), price, ok ? "rented" : "FAILED (bed owner unchanged)");
+						logger::info("rent_room at {} for {} gold -> {}", Game::NameOf(npc), price, ok ? "rented" : "FAILED (bed owner unchanged)");
 						if (!ok) {
 							Game::Notify("The room could not be rented.");
 							return;
@@ -107,16 +107,16 @@ namespace MundaneMatters::Services
 						}
 						if (price == 0) {
 							Game::Notify("You were given a room for the night.");
-							Game::Mention(std::format("{} gave {} a room for the night, free of charge.", npc->GetName(), player->GetName()), npc);
+							Game::Mention(std::format("{} gave {} a room for the night, free of charge.", Game::NameOf(npc), player->GetName()), npc);
 						} else {
 							Game::Notify(std::format("Rented a room for {} gold.", price));
-							Game::Mention(std::format("{} paid {} {} gold and rented a room for the night.", player->GetName(), npc->GetName(), price), npc);
+							Game::Mention(std::format("{} paid {} {} gold and rented a room for the night.", player->GetName(), Game::NameOf(npc), price), npc);
 						}
 					});
 				},
 				{ arg });
 			if (!started) {
-				logger::error("rent_room: could not call RentRoom on {}", npc->GetName());
+				logger::error("rent_room: could not call RentRoom on {}", Game::NameOf(npc));
 			}
 		}
 
@@ -215,7 +215,7 @@ namespace MundaneMatters::Services
 			const float now = Game::Hours();
 			const std::string player = Game::Player()->GetName();
 			if (auto it = g_lastMeal.find(id); it != g_lastMeal.end() && now - it->second < kMealEvery) {
-				Game::Narrate(std::format("{} reminded {} with a smile that they had only just eaten together.", npc->GetName(), player), npc);
+				Game::Narrate(std::format("{} reminded {} with a smile that they had only just eaten together.", Game::NameOf(npc), player), npc);
 				return true;
 			}
 			g_lastMeal[id] = now;
@@ -229,16 +229,16 @@ namespace MundaneMatters::Services
 			const auto what = dish.empty() ? std::string("what food they had") : dish;
 			// Already sitting together: the meal comes to them.
 			if (Moments::IsSitting(npc->GetFormID())) {
-				Game::Mention(std::format("{} shared {} with {} right where they sat, and they ate together.", npc->GetName(), what, player), npc);
+				Game::Mention(std::format("{} shared {} with {} right where they sat, and they ate together.", Game::NameOf(npc), what, player), npc);
 				return true;
 			}
 			auto* seat = FindSeat(npc);
 			if (!seat) {
-				logger::info("meal: {} has no seat nearby; sharing it where they stand", npc->GetName());
-				Game::Mention(std::format("{} shared {} with {} right there, and they ate together.", npc->GetName(), what, player), npc);
+				logger::info("meal: {} has no seat nearby; sharing it where they stand", Game::NameOf(npc));
+				Game::Mention(std::format("{} shared {} with {} right there, and they ate together.", Game::NameOf(npc), what, player), npc);
 				return true;
 			}
-			logger::info("meal: {} heads to seat {:08X}", npc->GetName(), seat->GetFormID());
+			logger::info("meal: {} heads to seat {:08X}", Game::NameOf(npc), seat->GetFormID());
 			const auto seatId = seat->GetFormID();
 			// Walk there, sit, then invite the player over.
 			const bool walking = Papyrus::CallMethod(npc, "Actor", "PathToReference",
@@ -253,17 +253,17 @@ namespace MundaneMatters::Services
 						// Couldn't get there (a locked door, upstairs out of reach): no teleporting
 						// into a far chair; they share the meal where they are.
 						if (!reached || seat->GetPosition().GetDistance(npc->GetPosition()) > 400.0f) {
-							logger::info("meal: {} couldn't reach the seat; eating where they are", npc->GetName());
-							Game::Mention(std::format("{} shared {} with {} right there, and they ate together.", npc->GetName(), what, player), npc);
+							logger::info("meal: {} couldn't reach the seat; eating where they are", Game::NameOf(npc));
+							Game::Mention(std::format("{} shared {} with {} right there, and they ate together.", Game::NameOf(npc), what, player), npc);
 							return;
 						}
 						Papyrus::CallMethod(seat, "ObjectReference", "Activate", nullptr, static_cast<RE::TESObjectREFR*>(npc), false);
-						Game::Mention(std::format("{} sat down at the table with {} and invited {} to sit and eat with them.", npc->GetName(), what, player), npc);
+						Game::Mention(std::format("{} sat down at the table with {} and invited {} to sit and eat with them.", Game::NameOf(npc), what, player), npc);
 					});
 				},
 				static_cast<RE::TESObjectREFR*>(seat), 1.0f);
 			if (!walking) {
-				Game::Mention(std::format("{} shared {} with {}, and they ate together.", npc->GetName(), what, player), npc);
+				Game::Mention(std::format("{} shared {} with {}, and they ate together.", Game::NameOf(npc), what, player), npc);
 			}
 			return true;
 		}
@@ -314,7 +314,7 @@ namespace MundaneMatters::Services
 			}
 			Confirm::Offer offer;
 			offer.title = title;
-			offer.npc = npc->GetName();
+			offer.npc = Game::NameOf(npc);
 			offer.detail = detail;
 			offer.showPrice = false;
 			offer.seconds = static_cast<std::int32_t>(SkyrimNet::ConfigFloat("tuning.confirm_seconds", 15.0f));
@@ -361,11 +361,11 @@ namespace MundaneMatters::Services
 		{
 			const auto npcId = npc->GetFormID();
 			if (IsCompanion(npc)) {
-				logger::info("follow: {} is already a companion", npc->GetName());
+				logger::info("follow: {} is already a companion", Game::NameOf(npc));
 				return true;
 			}
 			if (FollowsPlayer(npc)) {
-				logger::info("follow: {} is already walking with the player (ours or SeverActions')", npc->GetName());
+				logger::info("follow: {} already follows the player (ours or SeverActions')", Game::NameOf(npc));
 				return true;
 			}
 			const Lines lines{
@@ -750,7 +750,7 @@ namespace MundaneMatters::Services
 			// there, they walk with the player again.
 			const bool companion = IsCompanion(npc);  // before our follow (and its teammate flag) comes off
 			const bool wasFollowing = EndOurFollow(npcId);
-			const std::string name = npc->GetName();
+			const std::string name = Game::NameOf(npc);
 			const bool called = Papyrus::CallMethod(quest, "SeverActions_Travel", "TravelToPlace",
 				[npcId, quest, name, place, mayRetry, wasFollowing](const RE::BSScript::Variable& started) {
 					const bool ok = !started.IsBool() || started.GetBool();
@@ -777,7 +777,7 @@ namespace MundaneMatters::Services
 							}
 						}
 						Game::Narrate(std::format("{} set off to lead {} to {}, but realised they don't actually know the way there.",
-										  npc->GetName(), Game::Player()->GetName(), place),
+										  Game::NameOf(npc), Game::Player()->GetName(), place),
 							npc);
 					});
 				},
@@ -972,8 +972,8 @@ namespace MundaneMatters::Services
 			const auto label = SpotLabel(kind);
 			auto* spot = FindSpot(npc, kind);
 			if (!spot) {
-				logger::info("escort: {} - no {} in here", npc->GetName(), label);
-				Game::Mention(std::format("{} looked around: there is no {} in here to show {}.", npc->GetName(), label.substr(label.find(' ') + 1),
+				logger::info("escort: {} - no {} in here", Game::NameOf(npc), label);
+				Game::Mention(std::format("{} looked around: there is no {} in here to show {}.", Game::NameOf(npc), label.substr(label.find(' ') + 1),
 								  Game::Player()->GetName()),
 					npc);
 				if (followAfter) {
@@ -982,8 +982,8 @@ namespace MundaneMatters::Services
 				return false;
 			}
 			if (spot->GetPosition().GetDistance(npc->GetPosition()) < 250.0f) {
-				logger::info("escort: {} - {} is right here", npc->GetName(), label);
-				Game::Mention(std::format("{} showed {} {}, right there beside them.", npc->GetName(), Game::Player()->GetName(), label), npc);
+				logger::info("escort: {} - {} is right here", Game::NameOf(npc), label);
+				Game::Mention(std::format("{} showed {} {}, right there beside them.", Game::NameOf(npc), Game::Player()->GetName(), label), npc);
 				if (followAfter) {
 					StartFollow(npcId);
 				}
@@ -1001,7 +1001,7 @@ namespace MundaneMatters::Services
 					MarkFollowAfter(npcId);
 				}
 			};
-			logger::info("escort: {} shows the player {} ({:08X})", npc->GetName(), label, spotId);
+			logger::info("escort: {} shows the player {} ({:08X})", Game::NameOf(npc), label, spotId);
 			if (!ask) {
 				go();
 				return true;
@@ -1121,7 +1121,7 @@ namespace MundaneMatters::Services
 			std::string place = placeSaid;
 			if (place.empty()) {
 				// Usually chatter during a trip ("not far now, keep up") or "where to?": nothing to start.
-				logger::info("escort: {} - no destination named", npc->GetName());
+				logger::info("escort: {} - no destination named", Game::NameOf(npc));
 				return false;
 			}
 			const auto npcId = npc->GetFormID();
@@ -1140,7 +1140,7 @@ namespace MundaneMatters::Services
 						std::scoped_lock l(g_thenSpotLock);
 						g_thenSpot[npcId] = { kind, std::chrono::steady_clock::now() };
 					}
-					logger::info("escort: {} - home first, then {}", npc->GetName(), SpotLabel(kind));
+					logger::info("escort: {} - home first, then {}", Game::NameOf(npc), SpotLabel(kind));
 					place = "home";
 				}
 			}
@@ -1159,7 +1159,7 @@ namespace MundaneMatters::Services
 				const bool hereByName = (cellName && *cellName && want.size() >= 4 && Lower(cellName).find(want) != std::string::npos) ||
 				                        (locName && *locName && want.size() >= 4 && Lower(locName) == want);
 				if ((theirHome && Promises::IsHome(cell, npc)) || hereByName) {
-					logger::info("escort: {} - already at '{}'", npc->GetName(), place);
+					logger::info("escort: {} - already at '{}'", Game::NameOf(npc), place);
 					return false;
 				}
 			}
@@ -1170,7 +1170,7 @@ namespace MundaneMatters::Services
 						return;
 					}
 					if (busy) {
-						logger::info("escort: {} is already on the way somewhere", npc->GetName());
+						logger::info("escort: {} is already on the way somewhere", Game::NameOf(npc));
 						return;
 					}
 					// A onLocal won't walk the player across Skyrim: another hold is days away.
@@ -1202,9 +1202,9 @@ namespace MundaneMatters::Services
 							if (!npc) {
 								return;
 							}
-							logger::info("escort: {} won't go to {} ({}): another hold", npc->GetName(), place, farHold);
+							logger::info("escort: {} won't go to {} ({}): another hold", Game::NameOf(npc), place, farHold);
 							Game::Narrate(std::format("{} realised {} is in {}, days of travel away, and they can't just leave {} to take {} there.",
-											  npc->GetName(), place, farHold, here ? here->GetName() : "home", Game::Player()->GetName()),
+											  Game::NameOf(npc), place, farHold, here ? here->GetName() : "home", Game::Player()->GetName()),
 								npc);
 						});
 				});
@@ -1224,7 +1224,7 @@ namespace MundaneMatters::Services
 			auto room = RoomOf(npc);
 			auto* player = Game::Player();
 			if (!room || !room->bed || !DialogueGeneric()) {
-				logger::warn("rent_room: {} has no rentable bed", npc->GetName());
+				logger::warn("rent_room: {} has no rentable bed", Game::NameOf(npc));
 				return false;
 			}
 			if (room->rentedByPlayer) {
@@ -1251,7 +1251,7 @@ namespace MundaneMatters::Services
 			}
 			Confirm::Offer offer{
 				"Rent a room",
-				npc->GetName(),
+				Game::NameOf(npc),
 				"A bed for the night",
 				price,
 				purse,
@@ -1948,11 +1948,11 @@ namespace MundaneMatters::Services
 		{
 			const auto npcId = npc->GetFormID();
 			if (FollowState(npc)) {
-				logger::info("company: {} is with the player already (a companion, or following through SeverActions)", npc->GetName());
+				logger::info("company: {} is with the player already (a companion, or following through SeverActions)", Game::NameOf(npc));
 				return true;
 			}
 			if (InCompany(npcId)) {
-				logger::info("company: {} is already spending time with the player", npc->GetName());
+				logger::info("company: {} is already spending time with the player", Game::NameOf(npc));
 				return true;
 			}
 			const Lines lines{
@@ -2145,7 +2145,7 @@ namespace MundaneMatters::Services
 				const char* full = cell->GetFullName();
 				p.name = full && *full ? full : HomeName(npc);
 				if (p.name.empty()) {
-					p.name = std::format("{}'s home", npc->GetName());
+					p.name = std::format("{}'s home", Game::NameOf(npc));
 				}
 				if (!WalkableFromHere(cell->GetLocation())) {
 					p.why = "too far";
@@ -2251,7 +2251,7 @@ namespace MundaneMatters::Services
 		// What the NPC is told when it can't happen (they say so, in their own words).
 		std::string CantVisit(RE::Actor* npc, Whose whose, const VisitPlan& p)
 		{
-			const std::string name = npc->GetName(), player = Game::Player()->GetName();
+			const std::string name = Game::NameOf(npc), player = Game::Player()->GetName();
 			const bool noHome = std::string_view(p.why) == "no home";
 			if (whose == Whose::kTheirs) {
 				return noHome ? std::format("{} had no home of their own to take {} back to.", name, player) :
@@ -2371,14 +2371,14 @@ namespace MundaneMatters::Services
 			const auto plan = PlanVisit(npc, whose, item);
 			auto* player = Game::Player();
 			if (!plan.ok) {
-				logger::info("visit: {} - {} ({})", npc->GetName(), plan.why, plan.name.empty() ? "-" : plan.name);
+				logger::info("visit: {} - {} ({})", Game::NameOf(npc), plan.why, plan.name.empty() ? "-" : plan.name);
 				Game::Narrate(CantVisit(npc, whose, plan), npc);
 				return true;
 			}
 			auto* cell = player->GetParentCell();
 			// Already there together: straight to the sit.
 			if (AtVisitHome(cell, npc, whose, plan.home) && npc->GetParentCell() == cell) {
-				logger::info("visit: {} - already at {}; sits", npc->GetName(), plan.name);
+				logger::info("visit: {} - already at {}; sits", Game::NameOf(npc), plan.name);
 				return Moments::Sit(npc, "", 0.0f);
 			}
 			Visit v;
@@ -2400,8 +2400,8 @@ namespace MundaneMatters::Services
 				std::scoped_lock l(g_walkLock);
 				g_visits[id] = v;
 			}
-			logger::info("visit: {} goes with the player to {} ({} follow)", npc->GetName(), plan.name, v.ours ? "our" : "their own");
-			Game::Notify(std::format("{} comes with you to {}.", npc->GetName(), plan.name));
+			logger::info("visit: {} goes with the player to {} ({} follow)", Game::NameOf(npc), plan.name, v.ours ? "our" : "their own");
+			Game::Notify(std::format("{} comes with you to {}.", Game::NameOf(npc), plan.name));
 			return true;
 		}
 
@@ -2689,7 +2689,7 @@ namespace MundaneMatters::Services
 	{
 		auto* quest = npc ? RE::TESDataHandler::GetSingleton()->LookupForm<RE::TESQuest>(0xD61, "IntelEngine.esp") : nullptr;
 		if (!quest) {
-			logger::info("meet: {} - IntelEngine isn't installed; the meeting is only words", npc ? npc->GetName() : "?");
+			logger::info("meet: {} - IntelEngine isn't installed; the meeting is only words", npc ? Game::NameOf(npc) : "?");
 			return false;
 		}
 		const auto id = npc->GetFormID();
@@ -2699,7 +2699,7 @@ namespace MundaneMatters::Services
 			const auto key = JsonUtil::Lower(place) + "|" + JsonUtil::Lower(time);
 			std::scoped_lock l(g_meetLock);
 			if (auto it = g_booked.find(id); it != g_booked.end() && it->second.first == key && Game::Hours() - it->second.second < 24.0f) {
-				logger::info("meet: {} - already booked ({} {})", npc->GetName(), place, time);
+				logger::info("meet: {} - already booked ({} {})", Game::NameOf(npc), place, time);
 				return true;
 			}
 			g_booked[id] = { key, Game::Hours() };
@@ -2752,7 +2752,7 @@ namespace MundaneMatters::Services
 			call(here, [done, here](bool ok2) { done(here, ok2); });
 		});
 		if (!sent) {
-			logger::warn("meet: IntelEngine_Schedule.ScheduleMeeting could not be called for {}", npc->GetName());
+			logger::warn("meet: IntelEngine_Schedule.ScheduleMeeting could not be called for {}", Game::NameOf(npc));
 		}
 		return sent;
 	}

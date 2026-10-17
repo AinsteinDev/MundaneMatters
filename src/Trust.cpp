@@ -110,10 +110,10 @@ namespace MundaneMatters::Trust
 			// Caught in the act; a theft found out (a bounty: someone saw and told); a blow is felt.
 			const bool caught = g.reason.find("in front of them") != std::string::npos || g.reason.find("tried to pick") != std::string::npos;
 			const bool discovered = g.reason.find("stole") != std::string::npos || g.reason.find("pocket") != std::string::npos;
-			Game::Narrate(caught       ? std::format("{} caught {} red-handed: {} {}, after all the trust they had shown them. They were hurt and angry.", npc->GetName(), PlayerName(), PlayerName(), g.reason) :
+			Game::Narrate(caught       ? std::format("{} caught {} red-handed: {} {}, after all the trust they had shown them. They were hurt and angry.", Game::NameOf(npc), PlayerName(), PlayerName(), g.reason) :
 			              discovered
-							  ? std::format("{} found out that {} {}, after all the trust they had shown them, and was hurt and angry.", npc->GetName(), PlayerName(), g.reason)
-							  : std::format("{} was shocked and angry that {} {}.", npc->GetName(), PlayerName(), g.reason),
+							  ? std::format("{} found out that {} {}, after all the trust they had shown them, and was hurt and angry.", Game::NameOf(npc), PlayerName(), g.reason)
+							  : std::format("{} was shocked and angry that {} {}.", Game::NameOf(npc), PlayerName(), g.reason),
 				npc);
 		}
 
@@ -147,7 +147,7 @@ namespace MundaneMatters::Trust
 			for (auto& s : lost) {
 				list += (list.empty() ? "" : ", ") + s;
 			}
-			const std::string name = npc->GetName();
+			const std::string name = Game::NameOf(npc);
 			Game::Notify(list.empty() ? std::format("{} no longer trusts you.", name) : std::format("{} no longer trusts you (lost: {}).", name, list));
 			SkyrimNet::AddMemory(id,
 				level == Level::kAttacked ? std::format("{} attacked {}. {} will never forgive it.", PlayerName(), name, name)
@@ -222,7 +222,7 @@ namespace MundaneMatters::Trust
 						// Someone saw and told: they find out, and say so when next they meet.
 						Break(npc, Level::kOffended, "stole from their home", false);
 					} else {
-						logger::info("trust: a theft in {}'s home went unseen; nothing comes of it", npc->GetName());
+						logger::info("trust: a theft in {}'s home went unseen; nothing comes of it", Game::NameOf(npc));
 					}
 				}
 			});
@@ -275,7 +275,7 @@ namespace MundaneMatters::Trust
 			std::erase_if(hits, [&](const Clock::time_point& t) { return now - t > 10s; });
 			hits.push_back(now);
 			if (hits.size() >= 4) {
-				logger::info("friendly fire: {} hit {} times in a row; that's meant", npc->GetName(), hits.size());
+				logger::info("friendly fire: {} hit {} times in a row; that's meant", Game::NameOf(npc), hits.size());
 				return false;
 			}
 			g_friendlyCalmed[id] = now;
@@ -294,11 +294,11 @@ namespace MundaneMatters::Trust
 			if (npc->IsHostileToActor(player) || target.get() == player) {
 				Papyrus::CallMethod(npc, "Actor", "StopCombat", nullptr);
 				Papyrus::CallMethod(npc, "Actor", "StopCombatAlarm", nullptr);
-				logger::info("friendly fire: {} was hit by accident in the fight; calmed down", npc->GetName());
+				logger::info("friendly fire: {} was hit by accident in the fight; calmed down", Game::NameOf(npc));
 				if (Clock::now() - g_friendlySaid > 60s) {
 					g_friendlySaid = Clock::now();
 					Game::Narrate(std::format("{}'s blow caught {} by accident in the fight. {} winced and glared, but knew it wasn't meant.",
-									  PlayerName(), npc->GetName(), npc->GetName()),
+									  PlayerName(), Game::NameOf(npc), Game::NameOf(npc)),
 						npc);
 				}
 			}
@@ -490,7 +490,7 @@ namespace MundaneMatters::Trust
 			}
 			g = it->second;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		Game::Notify(std::format("{} ({}): {}", name, g.level == Level::kAttacked ? "never forgave you" : "still upset", "won't do you favours"));
 		Game::Narrate(g.level == Level::kAttacked
 						  ? std::format("{} refused {}: not after {} attacked them.", name, what, PlayerName())
@@ -549,7 +549,7 @@ namespace MundaneMatters::Trust
 					it->second.forgivenReason = reason;
 				}
 			}
-			const std::string name = npc->GetName();
+			const std::string name = Game::NameOf(npc);
 			if (attacked) {
 				Game::Notify(std::format("{} won't forgive an attack.", name));
 				logger::info("trust: {} heard an apology, but never forgives an attack", name);

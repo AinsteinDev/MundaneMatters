@@ -5,6 +5,63 @@
 
 namespace MundaneMatters::Game
 {
+	namespace
+	{
+		std::thread::id g_mainThread;
+		std::mutex g_nameLock;
+		std::unordered_map<RE::FormID, std::string> g_names;  // SkyrimNet's names, looked up on the main thread
+	}
+
+	void NoteMainThread()
+	{
+		g_mainThread = std::this_thread::get_id();
+	}
+
+	std::string NameOf(RE::Actor* a)
+	{
+		if (!a) {
+			return "";
+		}
+		const std::string own = a->GetName() ? a->GetName() : "";
+		if (a->IsPlayerRef()) {
+			return own;
+		}
+		const auto id = a->GetFormID();
+		{
+			std::scoped_lock l(g_nameLock);
+			if (auto it = g_names.find(id); it != g_names.end()) {
+				return it->second.empty() ? own : it->second;
+			}
+		}
+		// SkyrimNet is asked only from the game's main thread: elsewhere (a SkyrimNet worker building a
+		// prompt) it could be waiting on itself. Meanwhile the game's own name, and the lookup queued.
+		if (g_mainThread != std::thread::id{} && std::this_thread::get_id() == g_mainThread) {
+			auto n = SkyrimNet::ActorName(id);
+			if (n.empty()) {
+				return own;  // not known to SkyrimNet (yet): asked again next time
+			}
+			std::scoped_lock l(g_nameLock);
+			g_names[id] = n;
+			return n;
+		}
+		// One lookup queued per actor at a time.
+		static std::unordered_set<RE::FormID> queued;
+		{
+			std::scoped_lock l(g_nameLock);
+			if (!queued.insert(id).second) {
+				return own;
+			}
+		}
+		SKSE::GetTaskInterface()->AddTask([id] {
+			if (auto* actor = RE::TESForm::LookupByID<RE::Actor>(id)) {
+				NameOf(actor);
+			}
+			std::scoped_lock l(g_nameLock);
+			queued.erase(id);
+		});
+		return own;
+	}
+
 	void Notify(const std::string& msg)
 	{
 		SKSE::GetTaskInterface()->AddTask([msg] {

@@ -75,8 +75,8 @@ namespace MundaneMatters::Loans
 
 		void Settled(RE::Actor* npc, const std::string& what, bool used)
 		{
-			Game::Notify(std::format("Returned {} to {}", what, npc->GetName()));
-			SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} brought back the {} {} had lent them.", PlayerName(), what, npc->GetName()), 0.5f);
+			Game::Notify(std::format("Returned {} to {}", what, Game::NameOf(npc)));
+			SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} brought back the {} {} had lent them.", PlayerName(), what, Game::NameOf(npc)), 0.5f);
 			// Trustworthy: what's lent comes back. Borrowed and handed straight back isn't a deed.
 			if (used) {
 				Bonds::Add(npc, Bonds::Deed::kReturned, 1);
@@ -108,9 +108,9 @@ namespace MundaneMatters::Loans
 				if (const auto settled = GiveBack(npc, item, n); settled > 0) {
 					const auto what = Promises::Counted(item->GetName(), settled);
 					if (Game::DistanceToPlayer(npc) < kRemindRange) {
-						Game::Narrate(std::format("{} put the {} back where it belongs in {}'s home.", PlayerName(), what, npc->GetName()), npc);
+						Game::Narrate(std::format("{} put the {} back where it belongs in {}'s home.", PlayerName(), what, Game::NameOf(npc)), npc);
 					}
-					logger::info("loans: {} put {} back in {}'s home", PlayerName(), what, npc->GetName());
+					logger::info("loans: {} put {} back in {}'s home", PlayerName(), what, Game::NameOf(npc));
 				}
 				return;
 			}
@@ -205,7 +205,7 @@ namespace MundaneMatters::Loans
 				best = w;
 			}
 		}
-		logger::info("loans: {} works with {} -> {}", npc->GetName(), pick ? "pickaxes" : "axes", best ? best->GetName() : "none found");
+		logger::info("loans: {} works with {} -> {}", Game::NameOf(npc), pick ? "pickaxes" : "axes", best ? best->GetName() : "none found");
 		return best;
 	}
 
@@ -219,7 +219,7 @@ namespace MundaneMatters::Loans
 		b.item = item->GetFormID();
 		b.count = n;
 		b.name = item->GetName();
-		b.npcName = npc->GetName();
+		b.npcName = Game::NameOf(npc);
 		b.since = Game::Hours();
 		b.back = backInHours >= 1.0f ? backInHours : kDefaultHours;
 		b.due = b.since + b.back;
@@ -265,7 +265,7 @@ namespace MundaneMatters::Loans
 		}
 		if (settled > 0) {
 			Settled(npc, Promises::Counted(item->GetName(), settled), used);
-			logger::info("loans: {} gave back {} x{} to {}", PlayerName(), item->GetName(), settled, npc->GetName());
+			logger::info("loans: {} gave back {} x{} to {}", PlayerName(), item->GetName(), settled, Game::NameOf(npc));
 		}
 		return settled;
 	}
@@ -292,10 +292,10 @@ namespace MundaneMatters::Loans
 			}
 		}
 		if (!name.empty()) {
-			Game::Notify(std::format("Paid {} for the lost {}", npc->GetName(), name));
-			SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} lost the {} {} had lent them, and paid for it.", PlayerName(), name, npc->GetName()), 0.4f);
+			Game::Notify(std::format("Paid {} for the lost {}", Game::NameOf(npc), name));
+			SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} lost the {} {} had lent them, and paid for it.", PlayerName(), name, Game::NameOf(npc)), 0.4f);
 			Bonds::Add(npc, Bonds::Deed::kReturned, 1);
-			logger::info("loans: {} paid {} {} gold for the lost {}", PlayerName(), npc->GetName(), gold, name);
+			logger::info("loans: {} paid {} {} gold for the lost {}", PlayerName(), Game::NameOf(npc), gold, name);
 		}
 		return name;
 	}
@@ -318,8 +318,8 @@ namespace MundaneMatters::Loans
 			}
 		}
 		if (!name.empty()) {
-			SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} let {} keep the {} they had lent.", npc->GetName(), PlayerName(), name), 0.4f);
-			logger::info("loans: {} let {} keep the {}", npc->GetName(), PlayerName(), name);
+			SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} let {} keep the {} they had lent.", Game::NameOf(npc), PlayerName(), name), 0.4f);
+			logger::info("loans: {} let {} keep the {}", Game::NameOf(npc), PlayerName(), name);
 		}
 		return name;
 	}
@@ -339,9 +339,9 @@ namespace MundaneMatters::Loans
 			}
 		}
 		const auto what = Promises::Counted(item->GetName(), n);
-		Game::Notify(std::format("You lent {} {}", npc->GetName(), what));
-		SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} lent {} their {}, to give back when asked.", PlayerName(), npc->GetName(), what), 0.4f);
-		logger::info("loans: {} lent {} {}", PlayerName(), npc->GetName(), what);
+		Game::Notify(std::format("You lent {} {}", Game::NameOf(npc), what));
+		SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} lent {} their {}, to give back when asked.", PlayerName(), Game::NameOf(npc), what), 0.4f);
+		logger::info("loans: {} lent {} {}", PlayerName(), Game::NameOf(npc), what);
 	}
 
 	bool HasLentTo(RE::FormID npc)
@@ -403,11 +403,11 @@ namespace MundaneMatters::Loans
 			TookBack(npc->GetFormID(), item, x.count);  // given back, or gone (lost, sold): either way no longer lent
 		}
 		if (back.empty()) {
-			Game::Narrate(std::format("{} looked for what {} had lent them, but no longer had it.", npc->GetName(), PlayerName()), npc);
+			Game::Narrate(std::format("{} looked for what {} had lent them, but no longer had it.", Game::NameOf(npc), PlayerName()), npc);
 			return true;
 		}
-		Game::Notify(std::format("{} gave back: {}", npc->GetName(), back));
-		Game::Narrate(std::format("{} handed back the {} {} had lent them.", npc->GetName(), back, PlayerName()), npc);
+		Game::Notify(std::format("{} gave back: {}", Game::NameOf(npc), back));
+		Game::Narrate(std::format("{} handed back the {} {} had lent them.", Game::NameOf(npc), back, PlayerName()), npc);
 		return true;
 	}
 

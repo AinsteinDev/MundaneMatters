@@ -372,7 +372,7 @@ namespace MundaneMatters::TurnPipeline
 				}
 				// Going home together: the player may already be through the door; the follow catches up.
 				if (service != "visit" && Game::DistanceToPlayer(npc) > kMaxServiceDistance) {
-					logger::info("{} skipped: {} walked away", service, npc->GetName());
+					logger::info("{} skipped: {} walked away", service, Game::NameOf(npc));
 					return;
 				}
 				auto run = [npcId, service, args, replyAt] {
@@ -393,8 +393,13 @@ namespace MundaneMatters::TurnPipeline
 						logger::info("{} skipped: the game's own dialogue line for it was just used", service);
 						return;
 					}
+					// "Alright then, let's go" right after they agreed to follow: already walking with the player.
+					if (service == "follow" && Services::FollowsPlayer(npc)) {
+						logger::info("follow: {} already follows the player; nothing to start", Game::NameOf(npc));
+						return;
+					}
 					bool ok = Services::Execute(service, npc, args);
-					logger::info("{} for {} -> {}", service, npc->GetName(), ok ? "started" : "FAILED");
+					logger::info("{} for {} -> {}", service, Game::NameOf(npc), ok ? "started" : "FAILED");
 				};
 				// Done in person: a few steps away, they come over first (up from a seat if they're in one),
 				// then the trade, the room, the lesson. Given 12 s; then it happens anyway if they're close.
@@ -404,7 +409,7 @@ namespace MundaneMatters::TurnPipeline
 					run();
 					return;
 				}
-				logger::info("{}: {} comes over first", service, npc->GetName());
+				logger::info("{}: {} comes over first", service, Game::NameOf(npc));
 				if (npc->GetOccupiedFurniture().get()) {
 					Moments::Release(npcId);
 					Papyrus::CallStatic("SeverActions_FurnitureLib", "Stop", nullptr, static_cast<RE::Actor*>(npc));
@@ -1173,7 +1178,7 @@ namespace MundaneMatters::TurnPipeline
 				SKSE::GetTaskInterface()->AddTask([npcId, promise] {
 					if (auto* npc = RE::TESForm::LookupByID<RE::Actor>(npcId)) {
 						Services::ScheduleMeeting(npc, promise.item, promise.timeHint, promise.saidPlace);
-						SkyrimNet::AddMemory(npcId, std::format("{} agreed to meet {} {}.", npc->GetName(), RE::PlayerCharacter::GetSingleton()->GetName(),
+						SkyrimNet::AddMemory(npcId, std::format("{} agreed to meet {} {}.", Game::NameOf(npc), RE::PlayerCharacter::GetSingleton()->GetName(),
 							Promises::Describe(promise).substr(8)), 0.5f);
 					}
 				});
@@ -1287,7 +1292,7 @@ namespace MundaneMatters::TurnPipeline
 				const bool answering = Pledges::Waiting(npcId);  // they just asked a favour: "sure" is an answer
 				const bool promise = promises && MightPromise(playerLine, npcLine);
 				if (!shopkeeper && !move && !activity && !trust && !answering && !promise) {
-					logger::info("{}: small talk, not classified", npc->GetName());
+					logger::info("{}: small talk, not classified", Game::NameOf(npc));
 					return;
 				}
 				if (npc->IsHostileToActor(Game::Player())) {
@@ -1299,7 +1304,7 @@ namespace MundaneMatters::TurnPipeline
 					for (auto& s : services) {
 						why += (why.empty() ? "" : ",") + s.id;
 					}
-					logger::info("{}: classifying ({}{}{}{}{})", npc->GetName(), why.empty() ? "" : "services " + why, promise ? " promise-talk" : "",
+					logger::info("{}: classifying ({}{}{}{}{})", Game::NameOf(npc), why.empty() ? "" : "services " + why, promise ? " promise-talk" : "",
 						trust ? " hurt/mend" : "", answering ? " answering a favour" : "", move ? " movement" : "");
 				}
 				std::vector<std::string> serviceIds;
@@ -1309,7 +1314,7 @@ namespace MundaneMatters::TurnPipeline
 
 				json ctx;
 				ctx["playerName"] = RE::PlayerCharacter::GetSingleton()->GetName();
-				ctx["npcName"] = npc->GetName();
+				ctx["npcName"] = Game::NameOf(npc);
 				ctx["playerLine"] = playerLine;
 				ctx["npcLine"] = npcLine;
 				{
@@ -1341,10 +1346,10 @@ namespace MundaneMatters::TurnPipeline
 				}
 				// Handed over moments ago (a kept promise, a gift): talk about it isn't a second one.
 				for (auto& what : Promises::GivenRecently(npcId)) {
-					ctx["recentLines"].push_back(std::format("(moments ago, {} handed {} {})", npc->GetName(), ctx["playerName"].get<std::string>(), what));
+					ctx["recentLines"].push_back(std::format("(moments ago, {} handed {} {})", Game::NameOf(npc), ctx["playerName"].get<std::string>(), what));
 				}
 
-				std::string npcName = npc->GetName();
+				std::string npcName = Game::NameOf(npc);
 				auto onReply = [npcId, npcName, replyAt, serviceIds, promises, playerLineCopy = playerLine, npcLineCopy = npcLine,
 							   earlierLines = ctx["recentLines"].dump()](const std::string& raw, bool success) {
 					if (!success) {
@@ -1565,7 +1570,7 @@ namespace MundaneMatters::TurnPipeline
 				// Prefer the fast "mundanematters_classifier" model slot; fall back to SkyrimNet's default.
 				if (!SkyrimNet::SendPrompt("mundanematters_turn", "mundanematters_classifier", ctx, safeReply) &&
 					!SkyrimNet::SendPrompt("mundanematters_turn", "", ctx, safeReply)) {
-					logger::error("could not queue classifier for {}", npc->GetName());
+					logger::error("could not queue classifier for {}", Game::NameOf(npc));
 				}
 			});
 		}

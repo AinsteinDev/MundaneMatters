@@ -11,7 +11,7 @@ If they agree in the conversation, the game makes it real.
 And because it's real, the people you meet stop being shopkeepers and quest-givers: they become people you *know*.
 You share their table, sit by their fire, keep your word to them, and one day they make room for you at their hearth.
 
-![Version](https://img.shields.io/badge/version-0.2.0-blue)
+![Version](https://img.shields.io/badge/version-0.2.1-blue)
 ![SkyrimNet](https://img.shields.io/badge/SkyrimNet-beta%2025%2B-8a2be2)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -145,7 +145,7 @@ and who's staying where, so what they say matches what will happen.
 Tested on Skyrim AE 1.6.1170. I play it with the **Gate to Sovngarde (GTS)** mod list, so it works great with that.
 
 ## Installation
-1. Download `MundaneMatters-v0.2.0.zip` from [Releases](https://github.com/AinsteinDev/MundaneMatters/releases).
+1. Download `MundaneMatters-v0.2.1.zip` from [Releases](https://github.com/AinsteinDev/MundaneMatters/releases).
 2. Install it with **Mod Organizer 2** or **Vortex**, or extract it into your `Data` folder.
 3. Start the game. **Mundane Matters** appears in SkyrimNet's Plugins list.
 

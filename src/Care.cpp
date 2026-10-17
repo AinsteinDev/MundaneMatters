@@ -49,7 +49,7 @@ namespace MundaneMatters::Care
 		// "Mira (Acquaintance): won't ..." - the real relationship, so the player sees why.
 		void Decline(RE::Actor* npc, const std::string& note, const std::string& narration)
 		{
-			Game::Notify(std::format("{} ({}): {}", npc->GetName(), Rest::RelationName(npc), note));
+			Game::Notify(std::format("{} ({}): {}", Game::NameOf(npc), Rest::RelationName(npc), note));
 			Game::Narrate(narration, npc);
 		}
 
@@ -88,7 +88,7 @@ namespace MundaneMatters::Care
 			const std::string decline = Game::Pick({ "On second thought, never mind.", "Maybe later.", "No, it's fine." });
 			Confirm::Offer offer;
 			offer.title = title;
-			offer.npc = npc->GetName();
+			offer.npc = Game::NameOf(npc);
 			offer.detail = detail;
 			offer.price = fee;
 			offer.playerGold = Game::ItemCount(Game::Player(), Game::Gold());
@@ -283,7 +283,7 @@ namespace MundaneMatters::Care
 				n = (std::min)(n, Game::ItemCount(player, obj) / count);
 			}
 			if (n <= 0) {
-				Game::Narrate(std::format("{} went to cook, but {} no longer had the ingredients.", npc->GetName(), PlayerName()), npc);
+				Game::Narrate(std::format("{} went to cook, but {} no longer had the ingredients.", Game::NameOf(npc), PlayerName()), npc);
 				return;
 			}
 			if (!Pay(fee * n, npc)) {
@@ -299,16 +299,16 @@ namespace MundaneMatters::Care
 			const bool atPot = pot && HasSeverActions() &&
 			                   Papyrus::CallStatic("SeverActions_FurnitureLib", "UseRef", nullptr, static_cast<RE::Actor*>(npc), static_cast<RE::TESObjectREFR*>(pot));
 			const std::string what = Promises::Counted(dish->GetName(), made);
-			logger::info("care: {} cooks {} from {} for {}{}", npc->GetName(), what, used, PlayerName(), fee > 0 ? std::format(" ({} gold)", fee * n) : "");
+			logger::info("care: {} cooks {} from {} for {}{}", Game::NameOf(npc), what, used, PlayerName(), fee > 0 ? std::format(" ({} gold)", fee * n) : "");
 			After(atPot ? 9000ms : 1500ms, [npcId, dish, made, what, atPot, free = fee == 0] {
 				auto* npc = RE::TESForm::LookupByID<RE::Actor>(npcId);
 				if (atPot && npc) {
 					Papyrus::CallStatic("SeverActions_FurnitureLib", "Stop", nullptr, static_cast<RE::Actor*>(npc));
 				}
 				Game::Player()->AddObjectToContainer(dish, nullptr, made, npc);
-				Game::Notify(std::format("{} cooked you {}", npc ? npc->GetName() : "They", what));
+				Game::Notify(std::format("{} cooked you {}", npc ? Game::NameOf(npc) : "They", what));
 				if (npc) {
-					Game::Narrate(std::format("{} finished cooking at the pot and handed {} the {}.", npc->GetName(), PlayerName(), what), npc);
+					Game::Narrate(std::format("{} finished cooking at the pot and handed {} the {}.", Game::NameOf(npc), PlayerName(), what), npc);
 					if (free) {
 						Bonds::Add(npc, Bonds::Deed::kCared, 1);
 					}
@@ -426,11 +426,11 @@ namespace MundaneMatters::Care
 				return;
 			}
 			const std::string name = item->GetName();
-			Game::Notify(std::format("{} improved your {} ({})", npc->GetName(), name, kQuality[step]));
-			Game::Narrate(std::format("{} worked {}'s {} at the grindstone and workbench until it was {} quality{}.", npc->GetName(), PlayerName(), name,
+			Game::Notify(std::format("{} improved your {} ({})", Game::NameOf(npc), name, kQuality[step]));
+			Game::Narrate(std::format("{} worked {}'s {} at the grindstone and workbench until it was {} quality{}.", Game::NameOf(npc), PlayerName(), name,
 							  kQuality[step], fee > 0 ? std::format(", for {} gold", fee) : ", as a favour"),
 				npc);
-			logger::info("care: {} tempered {} to {} ({} gold)", npc->GetName(), name, kQuality[step], fee);
+			logger::info("care: {} tempered {} to {} ({} gold)", Game::NameOf(npc), name, kQuality[step], fee);
 			if (fee == 0) {
 				Bonds::Add(npc, Bonds::Deed::kCared, 1);
 			}
@@ -440,15 +440,15 @@ namespace MundaneMatters::Care
 		{
 			auto piece = PieceOf(item, worn);
 			if (!piece) {
-				Game::Narrate(std::format("{} reached for {}'s {}, but it wasn't there.", npc->GetName(), PlayerName(), item->GetName()), npc);
+				Game::Narrate(std::format("{} reached for {}'s {}, but it wasn't there.", Game::NameOf(npc), PlayerName(), item->GetName()), npc);
 				return;
 			}
 			const int step = StepOf(piece->health) + 1;
 			const int ceiling = CeilingOf(npc);
 			if (step > ceiling) {
-				Game::Notify(std::format("{}: that's as good as I can make it", npc->GetName()));
-				Game::Narrate(std::format("{} looked {}'s {} over: it was already {} work, as good as {} could make it.", npc->GetName(), PlayerName(),
-								  item->GetName(), kQuality[step - 1], npc->GetName()),
+				Game::Notify(std::format("{}: that's as good as I can make it", Game::NameOf(npc)));
+				Game::Narrate(std::format("{} looked {}'s {} over: it was already {} work, as good as {} could make it.", Game::NameOf(npc), PlayerName(),
+								  item->GetName(), kQuality[step - 1], Game::NameOf(npc)),
 					npc);
 				return;
 			}
@@ -518,7 +518,7 @@ namespace MundaneMatters::Care
 		if (!npc) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		const float frac = HealthFraction(Game::Player());
 		if (frac >= kHealthy) {
 			Game::Narrate(std::format("{} looked {} over: there wasn't a scratch worth tending.", name, PlayerName()), npc);
@@ -554,18 +554,18 @@ namespace MundaneMatters::Care
 			if (potion && Game::ItemCount(npc, potion) > 0) {
 				npc->RemoveItem(potion, 1, RE::ITEM_REMOVE_REASON::kStoreInTeammate, nullptr, player);
 				RE::ActorEquipManager::GetSingleton()->EquipObject(player, potion);  // drinks it: its real effect
-				Game::Notify(std::format("{} gave you {} to drink", npc->GetName(), potion->GetName()));
-				Game::Narrate(std::format("{} pressed a {} into {}'s hands and watched them drink it.", npc->GetName(), potion->GetName(), PlayerName()), npc);
+				Game::Notify(std::format("{} gave you {} to drink", Game::NameOf(npc), potion->GetName()));
+				Game::Narrate(std::format("{} pressed a {} into {}'s hands and watched them drink it.", Game::NameOf(npc), potion->GetName(), PlayerName()), npc);
 			} else {
 				// Their spell's real strength; a priest's care at least half mends the wounds.
 				const float amount = spell > 0.0f ? (std::max)(spell, 25.0f) : max * 0.5f;
 				Restore(amount);
-				Game::Notify(std::format("{} healed you", npc->GetName()));
-				Game::Narrate(std::format("{} laid their hands on {}'s wounds{}.", npc->GetName(), PlayerName(),
+				Game::Notify(std::format("{} healed you", Game::NameOf(npc)));
+				Game::Narrate(std::format("{} laid their hands on {}'s wounds{}.", Game::NameOf(npc), PlayerName(),
 								  spell > 0.0f ? " and Restoration magic closed them" : priest ? ", cleaned and dressed them with a prayer" : ""),
 					npc);
 			}
-			logger::info("care: {} healed {} ({}{})", npc->GetName(), PlayerName(), potion ? potion->GetName() : spell > 0.0f ? "spell" : "tending",
+			logger::info("care: {} healed {} ({}{})", Game::NameOf(npc), PlayerName(), potion ? potion->GetName() : spell > 0.0f ? "spell" : "tending",
 				fee > 0 ? std::format(", {} gold", fee) : "");
 			{
 				std::scoped_lock l(g_lock);
@@ -584,7 +584,7 @@ namespace MundaneMatters::Care
 		if (!npc) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		const auto cls = ClassOf(npc);
 		const bool trade = Services::RoomOf(npc).has_value() || cls.find("cook") != std::string::npos || cls.find("chef") != std::string::npos ||
 		                   cls.find("innkeeper") != std::string::npos;
@@ -645,7 +645,7 @@ namespace MundaneMatters::Care
 		if (!npc) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		if (!IsSmith(npc)) {
 			Game::Narrate(std::format("{} was no smith and had no way to improve {}'s gear.", name, PlayerName()), npc);
 			return true;
@@ -719,7 +719,7 @@ namespace MundaneMatters::Care
 		if (!npc) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		if (!IsPriest(npc)) {
 			Game::Narrate(std::format("{} was no healer; a priest at the temple could cure that.", name), npc);
 			return true;
@@ -744,9 +744,9 @@ namespace MundaneMatters::Care
 			for (auto* d : Diseases()) {
 				player->RemoveSpell(d);
 			}
-			Game::Notify(std::format("{} cured you of {}", npc->GetName(), list));
-			Game::Narrate(std::format("{} prayed over {} and the {} left them.", npc->GetName(), PlayerName(), list), npc);
-			logger::info("care: {} cured {} of {}", npc->GetName(), PlayerName(), list);
+			Game::Notify(std::format("{} cured you of {}", Game::NameOf(npc), list));
+			Game::Narrate(std::format("{} prayed over {} and the {} left them.", Game::NameOf(npc), PlayerName(), list), npc);
+			logger::info("care: {} cured {} of {}", Game::NameOf(npc), PlayerName(), list);
 			Bonds::Add(npc, Bonds::Deed::kCared, 1);
 		});
 		return true;

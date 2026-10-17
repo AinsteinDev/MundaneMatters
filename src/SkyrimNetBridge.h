@@ -12,6 +12,10 @@ namespace MundaneMatters::SkyrimNet
 	bool Init();
 	bool IsAvailable();
 	int Version();
+
+	// The name SkyrimNet knows this actor by (it names generic NPCs: a "Vampire Fledgling" may be
+	// "Tinimanwe"), or "" when it has none. Any thread.
+	std::string ActorName(RE::FormID formId);
 	bool IsMemoryReady();
 
 	// Callbacks run on SkyrimNet's thread pool: never touch RE:: game state inside them,

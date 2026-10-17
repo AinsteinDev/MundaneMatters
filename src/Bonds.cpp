@@ -221,7 +221,7 @@ namespace MundaneMatters::Bonds
 				b.days.clear();
 			}
 			Papyrus::CallMethod(npc, "Actor", "SetRelationshipRank", nullptr, static_cast<RE::Actor*>(Game::Player()), static_cast<std::int32_t>(step->rank));
-			const std::string name = npc->GetName();
+			const std::string name = Game::NameOf(npc);
 			const std::string player = Game::Player()->GetName();
 			Game::Notify(std::format("{}: you are now {} ({}).", name, step->rank == 1 ? "friends" : step->rank == 2 ? "close confidants" : "allies", step->name));
 			SkyrimNet::AddMemory(npc->GetFormID(),
@@ -279,7 +279,7 @@ namespace MundaneMatters::Bonds
 			b.days.insert(day);
 		}
 		static constexpr std::array<const char*, 19> kNames{ "meal", "rest", "promise", "held", "gift", "stay", "talk", "fight", "travel", "protect", "returned", "cared", "drink", "sat", "song", "word", "spar", "home", "?" };
-		logger::info("bonds: {} +{} ({})", npc->GetName(), gained, kNames[(std::min)(static_cast<std::size_t>(deed), kNames.size() - 1)]);
+		logger::info("bonds: {} +{} ({})", Game::NameOf(npc), gained, kNames[(std::min)(static_cast<std::size_t>(deed), kNames.size() - 1)]);
 		MaybeStep(npc);
 	}
 

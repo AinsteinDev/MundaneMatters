@@ -315,6 +315,39 @@ namespace MundaneMatters::Confirm
 		return !OtherAsked({ kind }).empty();
 	}
 
+	void Tip(const std::string& id, const std::string& title, const std::string& text)
+	{
+		auto dir = SKSE::log::log_directory();
+		if (!dir || !Available()) {
+			return;
+		}
+		const auto file = *dir / "MundaneMatters_tips.txt";
+		{
+			std::ifstream in(file);
+			for (std::string line; in && std::getline(in, line);) {
+				if (line == id) {
+					return;  // "don't show again"
+				}
+			}
+		}
+		Offer offer;
+		offer.title = title;
+		offer.npc = "Tip";
+		offer.detail = text;
+		offer.showPrice = false;
+		offer.seconds = 0;
+		offer.silentRefuse = false;
+		offer.acceptLabel = "Got it";
+		offer.declineLabel = "Don't show again";
+		Ask(offer, [file, id](Choice choice) {
+			if (choice == Choice::kDecline) {
+				std::ofstream out(file, std::ios::app);
+				out << id << "\n";
+				logger::info("tip '{}': won't be shown again", id);
+			}
+		});
+	}
+
 	bool Ask(const Offer& offer, std::function<void(Choice)> done)
 	{
 		if (!Available()) {

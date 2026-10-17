@@ -167,7 +167,7 @@ namespace MundaneMatters::Gestures
 			case K::kDraw:
 				if (!npc->AsActorState()->IsWeaponDrawn()) {
 					Papyrus::CallMethod(npc, "Actor", "DrawWeapon", nullptr);
-					logger::info("gesture: {} draws their weapon", npc->GetName());
+					logger::info("gesture: {} draws their weapon", Game::NameOf(npc));
 					// Nothing came of it: put away again after a while.
 					std::thread([npcId] {
 						std::this_thread::sleep_for(std::chrono::seconds(60));
@@ -182,20 +182,20 @@ namespace MundaneMatters::Gestures
 			case K::kSheathe:
 				if (npc->AsActorState()->IsWeaponDrawn()) {
 					Papyrus::CallMethod(npc, "Actor", "SheatheWeapon", nullptr);
-					logger::info("gesture: {} puts their weapon away", npc->GetName());
+					logger::info("gesture: {} puts their weapon away", Game::NameOf(npc));
 				}
 				break;
 			case K::kStand:
 				if (npc->GetOccupiedFurniture().get()) {
 					StandUp(npc);
-					logger::info("gesture: {} stands up", npc->GetName());
+					logger::info("gesture: {} stands up", Game::NameOf(npc));
 				}
 				break;
 			case K::kApproach:
 				if (Game::DistanceToPlayer(npc) > 200.0f) {
 					StandUp(npc);
 					Papyrus::CallMethod(npc, "Actor", "PathToReference", nullptr, static_cast<RE::TESObjectREFR*>(player), 0.5f);
-					logger::info("gesture: {} comes over to the player", npc->GetName());
+					logger::info("gesture: {} comes over to the player", Game::NameOf(npc));
 				}
 				break;
 			case K::kIdle:
@@ -203,7 +203,7 @@ namespace MundaneMatters::Gestures
 				// stopped to talk). Back to normal a few seconds after, so they never stay stuck in it.
 				if (!npc->GetOccupiedFurniture().get() && !npc->IsMoving() && !npc->AsActorState()->IsWeaponDrawn() && !Services::FollowsPlayer(npc)) {
 					Papyrus::CallStatic("Debug", "SendAnimationEvent", nullptr, static_cast<RE::TESObjectREFR*>(npc), RE::BSFixedString(act.idle));
-					logger::info("gesture: {} - {}", npc->GetName(), act.idle);
+					logger::info("gesture: {} - {}", Game::NameOf(npc), act.idle);
 					std::thread([npcId] {
 						std::this_thread::sleep_for(std::chrono::seconds(4));
 						SKSE::GetTaskInterface()->AddTask([npcId] {
@@ -232,7 +232,7 @@ namespace MundaneMatters::Gestures
 			if (!npc) {
 				return;
 			}
-			auto acts = Read(line, npc->GetName());
+			auto acts = Read(line, Game::NameOf(npc));
 			// One idle at a time: the first described.
 			bool idled = false;
 			for (auto& a : acts) {

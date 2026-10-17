@@ -273,7 +273,7 @@ namespace MundaneMatters::Keepsakes
 			} else {
 				npc->RemoveItem(c.item, 1, RE::ITEM_REMOVE_REASON::kStoreInTeammate, nullptr, player);
 			}
-			const std::string name = npc->GetName();
+			const std::string name = Game::NameOf(npc);
 			const std::string item = c.item->GetName();
 			auto why = c.why;
 			if (auto at = why.find("{player}"); at != std::string::npos) {
@@ -399,7 +399,7 @@ namespace MundaneMatters::Keepsakes
 		for (auto& [npc, lover, moment] : give) {
 			auto c = Pick(npc, lover, moment);
 			if (!c.item) {
-				logger::info("keepsake: {} had nothing small of their own to give", npc->GetName());
+				logger::info("keepsake: {} had nothing small of their own to give", Game::NameOf(npc));
 				continue;  // nothing invented: no gift this time
 			}
 			{

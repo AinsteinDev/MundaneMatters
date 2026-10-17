@@ -247,12 +247,12 @@ namespace MundaneMatters::Moments
 					} else {
 						Papyrus::CallMethod(npc, "Actor", "EvaluatePackage", nullptr);
 					}
-					logger::info("drink: {} gets up ({})", npc->GetName(), cut ? "cut short" : "finished");
+					logger::info("drink: {} gets up ({})", Game::NameOf(npc), cut ? "cut short" : "finished");
 					if (!cut) {
 						Keepsakes::OnMoment(npcId);
 					}
 					if (!cut && !npc->IsDead()) {
-						Game::Mention(std::format("{} finished their {}, set the cup down and got up from the seat beside {}.", npc->GetName(), drink, PlayerName()), npc);
+						Game::Mention(std::format("{} finished their {}, set the cup down and got up from the seat beside {}.", Game::NameOf(npc), drink, PlayerName()), npc);
 					}
 				});
 			}).detach();
@@ -298,11 +298,11 @@ namespace MundaneMatters::Moments
 			}
 			Bonds::Add(npc, Bonds::Deed::kDrink, 1);
 			const std::string drink = playerDrink->GetName();
-			Game::Notify(std::format("A {} with {}", drink, npc->GetName()));
-			Game::Mention(std::format("{} sat down beside {} {} and they shared a {} together{}.", npc->GetName(), PlayerName(), where, drink,
+			Game::Notify(std::format("A {} with {}", drink, Game::NameOf(npc)));
+			Game::Mention(std::format("{} sat down beside {} {} and they shared a {} together{}.", Game::NameOf(npc), PlayerName(), where, drink,
 							  fee > 0 ? std::format(", {} having paid {} gold for the round", PlayerName(), fee) : ""),
 				npc);
-			logger::info("drink: {} and {} share {} ({}{})", npc->GetName(), PlayerName(), drink, where, fee > 0 ? std::format(", {} gold", fee) : "");
+			logger::info("drink: {} and {} share {} ({}{})", Game::NameOf(npc), PlayerName(), drink, where, fee > 0 ? std::format(", {} gold", fee) : "");
 			if (!SittingWith(npcId)) {
 				SitAndDrink(npcId, seatId, drink);  // sitting together already: they stay as they are
 			}
@@ -314,7 +314,7 @@ namespace MundaneMatters::Moments
 		if (!npc) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		auto* player = Game::Player();
 		const auto id = npc->GetFormID();
 		{
@@ -832,20 +832,20 @@ namespace MundaneMatters::Moments
 				std::this_thread::sleep_for(3s);
 				SKSE::GetTaskInterface()->AddTask([placed] { RemoveSpots(placed); });
 			}).detach();
-			logger::info("sit: {} gets up ({})", npc ? npc->GetName() : "?", why);
+			logger::info("sit: {} gets up ({})", npc ? Game::NameOf(npc) : "?", why);
 			if (npc && (std::string_view(why) == "player stood" || std::string_view(why) == "player walked off" || std::string_view(why) == "time to get on")) {
 				Keepsakes::OnMoment(s.npc);
 			}
 			if (npc && say && !npc->IsDead()) {
 				const std::string w = why;
 				Game::Narrate(w == "player stood"
-								  ? std::format("{} got up as well when {} stood, stretching after the rest.", npc->GetName(), PlayerName())
+								  ? std::format("{} got up as well when {} stood, stretching after the rest.", Game::NameOf(npc), PlayerName())
 							  : w == "player walked off"
-								  ? std::format("{} got up when {} wandered off, and went after them.", npc->GetName(), PlayerName())
+								  ? std::format("{} got up when {} wandered off, and went after them.", Game::NameOf(npc), PlayerName())
 							  : w == "time to get on"
 								  ? std::format("After a good while sitting together, {} stretched and got up: they had things of their own to see to, and said what.",
-										npc->GetName())
-								  : std::format("{} waited a while for {} to sit down beside them, then got up again.", npc->GetName(), PlayerName()),
+										Game::NameOf(npc))
+								  : std::format("{} waited a while for {} to sit down beside them, then got up again.", Game::NameOf(npc), PlayerName()),
 					npc);
 			}
 		}
@@ -926,7 +926,7 @@ namespace MundaneMatters::Moments
 			hours = (std::min)(hours, kMaxSkip);
 			if (HostilesNear()) {
 				if (auto* npc = RE::TESForm::LookupByID<RE::Actor>(g_sit->npc)) {
-					Game::Narrate(std::format("{} kept glancing into the dark: this was no place to let the hours slip by.", npc->GetName()), npc);
+					Game::Narrate(std::format("{} kept glancing into the dark: this was no place to let the hours slip by.", Game::NameOf(npc)), npc);
 				}
 				return;
 			}
@@ -955,13 +955,13 @@ namespace MundaneMatters::Moments
 						g_sit->counted = true;
 						Bonds::Add(npc, Bonds::Deed::kSat, 1);
 					}
-					SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} sat with {} {} for {} , talking quietly and resting.", npc->GetName(), PlayerName(), g_sit->where,
+					SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} sat with {} {} for {} , talking quietly and resting.", Game::NameOf(npc), PlayerName(), g_sit->where,
 																 Lower(span.c_str())),
 						0.5f);
 					Game::Mention(std::format("{} slipped by as {} and {} sat together {}, talking now and then. {} looked up, surprised how late it had got.", span,
-									  npc->GetName(), PlayerName(), g_sit->where, npc->GetName()),
+									  Game::NameOf(npc), PlayerName(), g_sit->where, Game::NameOf(npc)),
 						npc);
-					logger::info("sit: {:.1f} hours passed with {}", hours, npc->GetName());
+					logger::info("sit: {:.1f} hours passed with {}", hours, Game::NameOf(npc));
 				});
 			}).detach();
 		}
@@ -987,7 +987,7 @@ namespace MundaneMatters::Moments
 				}
 				Confirm::Offer offer;
 				offer.title = "Pass the time";
-				offer.npc = npc->GetName();
+				offer.npc = Game::NameOf(npc);
 				offer.detail = std::format("Sit {} for {} hour{}", s.where, h < 1.0f ? "half an" : std::to_string(static_cast<int>(h)), h >= 2.0f ? "s" : "");
 				offer.showPrice = false;
 				offer.seconds = static_cast<std::int32_t>(SkyrimNet::ConfigFloat("tuning.confirm_seconds", 15.0f));
@@ -1005,7 +1005,7 @@ namespace MundaneMatters::Moments
 			}
 			Confirm::Offer offer;
 			offer.title = "Pass the time?";
-			offer.npc = npc->GetName();
+			offer.npc = Game::NameOf(npc);
 			offer.detail = std::format("Sitting {}", s.where);
 			offer.showPrice = false;
 			offer.seconds = 0;
@@ -1032,7 +1032,7 @@ namespace MundaneMatters::Moments
 		if (!npc) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		if (SittingWith(npc->GetFormID())) {
 			logger::info("sit: {} is already sitting with the player; nothing to change", name);
 			return true;
@@ -1311,7 +1311,7 @@ namespace MundaneMatters::Moments
 					   !npc->IsInCombat()) {
 				const auto said = g_drinkPlan->said;
 				g_drinkPlan.reset();
-				logger::info("drink: at the tavern with {}; the drink they agreed on", npc->GetName());
+				logger::info("drink: at the tavern with {}; the drink they agreed on", Game::NameOf(npc));
 				Drink(npc, said);
 			}
 		}
@@ -1512,7 +1512,7 @@ namespace MundaneMatters::Moments
 		if (!npc) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		auto* player = Game::Player();
 		const auto id = npc->GetFormID();
 		if (auto it = g_lastSong.find(id); it != g_lastSong.end() && Game::Hours() - it->second < kSongEvery) {
@@ -1613,7 +1613,7 @@ namespace MundaneMatters::Moments
 			if (g_song->scene && (fight || gone)) {
 				StopVanillaSongs();  // a fight breaks out, or the player walked off: the music stops
 			}
-			logger::info("song: {}'s performance ends ({})", npc ? npc->GetName() : "?", fight ? "fight" : gone ? "player left" : "done");
+			logger::info("song: {}'s performance ends ({})", npc ? Game::NameOf(npc) : "?", fight ? "fight" : gone ? "player left" : "done");
 			g_song.reset();
 			SetSongBio(0, "");
 		}

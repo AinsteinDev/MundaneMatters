@@ -34,6 +34,19 @@ namespace MundaneMatters::SkyrimNet
 	bool IsAvailable() { return g_available; }
 	int Version() { return g_version; }
 
+	std::string ActorName(RE::FormID formId)
+	{
+		if (g_version < 3 || !PublicFormIDToUUID || !PublicGetActorNameByUUID || !formId) {
+			return "";
+		}
+		try {
+			const auto uuid = PublicFormIDToUUID(formId);
+			return uuid ? PublicGetActorNameByUUID(uuid) : std::string();
+		} catch (...) {
+			return "";
+		}
+	}
+
 	bool IsMemoryReady()
 	{
 		return g_available && PublicIsMemorySystemReady && PublicIsMemorySystemReady();

@@ -219,8 +219,8 @@ namespace MundaneMatters::Trade
 			Practise(price);
 			const auto what = Promises::Counted(item->GetName(), n);
 			Game::Notify(std::format("Bought {} for {} gold", what, price));
-			Game::Narrate(std::format("{} paid {} {} gold and got {}.", PlayerName(), npc->GetName(), price, what), npc);
-			logger::info("buy: {} bought {} from {} for {}", PlayerName(), what, npc->GetName(), price);
+			Game::Narrate(std::format("{} paid {} {} gold and got {}.", PlayerName(), Game::NameOf(npc), price, what), npc);
+			logger::info("buy: {} bought {} from {} for {}", PlayerName(), what, Game::NameOf(npc), price);
 		}
 
 		void DoSell(RE::FormID npcId, RE::TESBoundObject* item, std::int32_t n, std::int32_t price)
@@ -241,8 +241,8 @@ namespace MundaneMatters::Trade
 			Practise(price);
 			const auto what = Promises::Counted(item->GetName(), n);
 			Game::Notify(std::format("Sold {} for {} gold", what, price));
-			Game::Narrate(std::format("{} sold {} to {} and was paid {} gold.", PlayerName(), what, npc->GetName(), price), npc);
-			logger::info("sell: {} sold {} to {} for {}", PlayerName(), what, npc->GetName(), price);
+			Game::Narrate(std::format("{} sold {} to {} and was paid {} gold.", PlayerName(), what, Game::NameOf(npc), price), npc);
+			logger::info("sell: {} sold {} to {} for {}", PlayerName(), what, Game::NameOf(npc), price);
 		}
 
 		// Yes/no before the money moves, when "Confirm Paid Services" is on; otherwise straight ahead
@@ -263,7 +263,7 @@ namespace MundaneMatters::Trade
 			                                   : Game::Pick({ "I'll hold on to it.", "Not for that price.", "Maybe another time." });
 			Confirm::Offer offer;
 			offer.title = buying ? "Buy" : "Sell";
-			offer.npc = npc->GetName();
+			offer.npc = Game::NameOf(npc);
 			offer.sameAs = { "trade", "payment" };  // SeverActions' BuyItem / SellItem, if switched on
 			offer.detail = Promises::Counted(item->GetName(), n);
 			offer.price = price;
@@ -292,7 +292,7 @@ namespace MundaneMatters::Trade
 			const auto npcId = npc->GetFormID();
 			Confirm::Offer offer;
 			offer.title = buying ? "Buy" : "Sell";
-			offer.npc = npc->GetName();
+			offer.npc = Game::NameOf(npc);
 			offer.sameAs = { "trade", "payment" };  // SeverActions' BuyItem / SellItem, if switched on
 			offer.detail = "Which one?";
 			offer.showPrice = false;
@@ -310,7 +310,7 @@ namespace MundaneMatters::Trade
 				}
 			}
 			if (offer.pick.empty() || !Confirm::Available()) {
-				Game::Narrate(std::format("{} couldn't make out which one {} meant.", npc->GetName(), PlayerName()), npc);
+				Game::Narrate(std::format("{} couldn't make out which one {} meant.", Game::NameOf(npc), PlayerName()), npc);
 				return;
 			}
 			Confirm::Ask(offer, [npcId, buying](Confirm::Choice choice) {
@@ -326,7 +326,7 @@ namespace MundaneMatters::Trade
 				const auto price = (buying ? BuyPrice(item) : SellPrice(item)) * qty;
 				const auto purse = Game::ItemCount(buying ? static_cast<RE::TESObjectREFR*>(Game::Player()) : Till(npc), Game::Gold());
 				if (purse < price) {
-					Game::Notify(buying ? std::format("You need {} gold.", price) : std::format("{} can't afford {} gold.", npc->GetName(), price));
+					Game::Notify(buying ? std::format("You need {} gold.", price) : std::format("{} can't afford {} gold.", Game::NameOf(npc), price));
 					return;
 				}
 				buying ? DoBuy(npcId, item, qty, price) : DoSell(npcId, item, qty, price);
@@ -424,7 +424,7 @@ namespace MundaneMatters::Trade
 			note = std::format("{} just asked about prices (\"{}\"). Has nothing like that for sale: if they named something, say so; the rest of the stock is in the trade window.",
 				player, playerLine);
 		}
-		logger::info("quote for {}: {}", npc->GetName(), note);
+		logger::info("quote for {}: {}", Game::NameOf(npc), note);
 		std::scoped_lock l(g_lock);
 		g_quotes[npc->GetFormID()] = { std::move(note), Clock::now() };
 	}
@@ -444,7 +444,7 @@ namespace MundaneMatters::Trade
 		if (!npc || !npc->GetVendorFaction()) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		// Nothing named ("I'll buy something"): the shelves are in the trade window.
 		if (JsonUtil::Words(item).empty()) {
 			return Papyrus::CallMethod(npc, "Actor", "ShowBarterMenu", nullptr);
@@ -481,7 +481,7 @@ namespace MundaneMatters::Trade
 		if (!npc || !npc->GetVendorFaction()) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		if (JsonUtil::Words(item).empty()) {
 			return Papyrus::CallMethod(npc, "Actor", "ShowBarterMenu", nullptr);
 		}

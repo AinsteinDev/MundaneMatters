@@ -92,6 +92,13 @@ namespace MundaneMatters::Game
 	// Vanilla corner notification. Safe from any thread.
 	void Notify(const std::string& msg);
 
+	// An actor's name as the player knows it: SkyrimNet's name for them (generic NPCs get one), else
+	// the game's. Any thread.
+	std::string NameOf(RE::Actor* a);
+
+	// Call once from the main thread (SKSE's messaging callbacks run there).
+	void NoteMainThread();
+
 	// Notification shown only with "Debug Notifications" on.
 	void DebugNotify(const std::string& msg);
 

@@ -148,7 +148,7 @@ namespace MundaneMatters::Safekeeping
 				std::scoped_lock l(g_lock);
 				g_kept[npc->GetFormID()].chest = ref->GetFormID();
 			}
-			logger::info("hold: storage {:08X} for {}", ref->GetFormID(), npc->GetName());
+			logger::info("hold: storage {:08X} for {}", ref->GetFormID(), Game::NameOf(npc));
 			return ref.get();
 		}
 
@@ -192,9 +192,9 @@ namespace MundaneMatters::Safekeeping
 
 		void Told(RE::Actor* npc, const std::string& what)
 		{
-			Game::Notify(std::format("{} is keeping: {}", npc->GetName(), what));
-			Game::Narrate(std::format("{} handed {} {} to keep safe for them, and {} put it away.", PlayerName(), npc->GetName(), what, npc->GetName()), npc);
-			logger::info("hold: {} keeps {}", npc->GetName(), what);
+			Game::Notify(std::format("{} is keeping: {}", Game::NameOf(npc), what));
+			Game::Narrate(std::format("{} handed {} {} to keep safe for them, and {} put it away.", PlayerName(), Game::NameOf(npc), what, Game::NameOf(npc)), npc);
+			logger::info("hold: {} keeps {}", Game::NameOf(npc), what);
 		}
 
 		// One clear item: a popup shows exactly what leaves the pack.
@@ -217,7 +217,7 @@ namespace MundaneMatters::Safekeeping
 			const std::string decline = Game::Pick({ "Actually, I'll hang on to it.", "On second thought, I'll keep it.", "Never mind." });
 			Confirm::Offer offer;
 			offer.title = "Hand over";
-			offer.npc = npc->GetName();
+			offer.npc = Game::NameOf(npc);
 			offer.detail = std::format("{}{} (they keep it for you)", what, f.worn ? " (equipped)" : "");
 			offer.showPrice = false;
 			offer.seconds = 0;
@@ -248,8 +248,8 @@ namespace MundaneMatters::Safekeeping
 			auto* player = Game::Player();
 			Confirm::Offer offer;
 			offer.title = "Hold";
-			offer.npc = npc->GetName();
-			offer.detail = given.empty() ? std::format("What should {} keep for you?", npc->GetName()) : "Anything else?";
+			offer.npc = Game::NameOf(npc);
+			offer.detail = given.empty() ? std::format("What should {} keep for you?", Game::NameOf(npc)) : "Anything else?";
 			offer.showPrice = false;
 			offer.seconds = 0;
 			offer.acceptLabel = "Hand it over";
@@ -330,7 +330,7 @@ namespace MundaneMatters::Safekeeping
 					g_snapshot[obj] = count;
 				}
 			}
-			logger::info("hold: opening {}'s pack", npc->GetName());
+			logger::info("hold: opening {}'s pack", Game::NameOf(npc));
 			Papyrus::CallMethod(npc, "Actor", "OpenInventory", nullptr, true);
 		}
 
@@ -361,12 +361,12 @@ namespace MundaneMatters::Safekeeping
 			}
 			g_snapshot.clear();
 			if (gave.empty() && took.empty()) {
-				logger::info("hold: {}'s pack closed, nothing changed hands", npc->GetName());
+				logger::info("hold: {}'s pack closed, nothing changed hands", Game::NameOf(npc));
 				return;
 			}
 			std::string what;
 			if (!gave.empty()) {
-				what = std::format("handed {} {} to carry", npc->GetName(), ListOf(gave));
+				what = std::format("handed {} {} to carry", Game::NameOf(npc), ListOf(gave));
 			}
 			if (!took.empty()) {
 				what += std::format("{}took back {}", what.empty() ? "" : " and ", ListOf(took));
@@ -395,7 +395,7 @@ namespace MundaneMatters::Safekeeping
 		if (!npc) {
 			return false;
 		}
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		// They agreed to it in their reply: the relationship doesn't overrule a yes (a hunting partner
 		// they barely know still carries the carcass). The things stay the player's, kept on record.
 		auto* player = Game::Player();
@@ -433,7 +433,7 @@ namespace MundaneMatters::Safekeeping
 			return false;
 		}
 		auto* player = Game::Player();
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		if (Services::IsCompanion(npc)) {
 			if (!item.empty()) {
 				const auto found = Promises::FindItems(npc, item);
@@ -556,8 +556,8 @@ namespace MundaneMatters::Safekeeping
 						Move(chest, obj, item.count, npc);
 					}
 				}
-				Game::Notify(std::format("{} is dead; your things are on their body.", npc->GetName()));
-				logger::info("hold: {} died; their safekeeping moved to the body", npc->GetName());
+				Game::Notify(std::format("{} is dead; your things are on their body.", Game::NameOf(npc)));
+				logger::info("hold: {} died; their safekeeping moved to the body", Game::NameOf(npc));
 			}
 		}
 	}

@@ -83,7 +83,7 @@ namespace MundaneMatters::Brawls
 			r.spar = wasTeammate || Services::IsCompanion(npc) || Promises::IsClose(npc);
 			r.how = how;
 			r.at = Game::Hours();
-			r.npcName = npc->GetName();
+			r.npcName = Game::NameOf(npc);
 			{
 				std::scoped_lock l(g_lock);
 				g_results[npc->GetFormID()] = r;

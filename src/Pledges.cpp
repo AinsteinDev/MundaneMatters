@@ -669,7 +669,7 @@ namespace MundaneMatters::Pledges
 			}
 			// Just threatened or insulted: no favours.
 			if (auto it = g_rough.find(npcId); it != g_rough.end() && SteadyClock::now() - it->second < kRoughLasts) {
-				logger::info("errand: {} was just spoken to roughly; no favour asked", npc->GetName());
+				logger::info("errand: {} was just spoken to roughly; no favour asked", Game::NameOf(npc));
 				return;
 			}
 			static std::mt19937 rng{ std::random_device{}() };
@@ -698,7 +698,7 @@ namespace MundaneMatters::Pledges
 			ask.npc = npcId;
 			ask.until = SteadyClock::now() + kAskWaits;
 			std::string request;
-			const std::string name = npc->GetName();
+			const std::string name = Game::NameOf(npc);
 			if (who && parcel && pick == 2) {
 				ask.type = "deliver";
 				ask.itemBase = parcel->GetFormID();
@@ -740,7 +740,7 @@ namespace MundaneMatters::Pledges
 		const float now = Game::Hours();
 		Pledge p;
 		p.npc = npc->GetFormID();
-		p.npcName = npc->GetName();
+		p.npcName = Game::NameOf(npc);
 		p.type = TypeOf(type);
 		p.item = item;
 		p.words = words;
@@ -839,7 +839,7 @@ namespace MundaneMatters::Pledges
 			std::scoped_lock l(g_lock);
 			if (auto ask = std::ranges::find_if(g_asks, [&](const Ask& a) { return a.npc == npcId && SteadyClock::now() < a.until; }); ask != g_asks.end()) {
 				list.push_back({ { "type", ask->type }, { "item", ask->item }, { "when", "now" } });
-				logger::info("pledge: \"{}\" says yes to {}'s favour ({} {})", playerLine, npc->GetName(), ask->type, ask->item.empty() ? ask->recipient : ask->item);
+				logger::info("pledge: \"{}\" says yes to {}'s favour ({} {})", playerLine, Game::NameOf(npc), ask->type, ask->item.empty() ? ask->recipient : ask->item);
 			}
 		}
 		for (auto& o : list) {
@@ -848,7 +848,7 @@ namespace MundaneMatters::Pledges
 			}
 			Pledge p;
 			p.npc = npcId;
-			p.npcName = npc->GetName();
+			p.npcName = Game::NameOf(npc);
 			p.type = TypeOf(JsonUtil::Str(o, "type"));
 			if (p.type == "other" && SaysVisit(playerLine)) {
 				p.type = "visit";  // "I'll be sure to visit you": kept by coming to see them
@@ -987,7 +987,7 @@ namespace MundaneMatters::Pledges
 			// Delivered to the person it was meant for: kept to the one who sent it.
 			if (p.type == "deliver" && base && p.recipientBase == base->GetFormID()) {
 				Kept(p, RE::TESForm::LookupByID<RE::Actor>(p.npc));
-				SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} brought {} {} from {}.", PlayerName(), npc->GetName(), item->GetName(), p.npcName), 0.5f);
+				SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} brought {} {} from {}.", PlayerName(), Game::NameOf(npc), item->GetName(), p.npcName), 0.5f);
 				return 1;
 			}
 		}
@@ -1388,10 +1388,10 @@ namespace MundaneMatters::Pledges
 			Game::Narrate(std::format("{} came by to look in on {}, because {} had asked them to.", PlayerName(), who->GetName(), sender), who);
 		}
 		for (auto& [npc, what] : visited) {
-			Game::Narrate(std::format("{} had come to see {}, just as they had promised.", PlayerName(), npc->GetName()), npc);
+			Game::Narrate(std::format("{} had come to see {}, just as they had promised.", PlayerName(), Game::NameOf(npc)), npc);
 		}
 		for (auto& [npc, what] : mention) {
-			Game::Narrate(std::format("{} remembered that {} had promised to {} and never did, and brought it up, disappointed.", npc->GetName(), PlayerName(), what), npc);
+			Game::Narrate(std::format("{} remembered that {} had promised to {} and never did, and brought it up, disappointed.", Game::NameOf(npc), PlayerName(), what), npc);
 		}
 	}
 

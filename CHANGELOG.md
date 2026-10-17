@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.1] - 2026-10-17
+
+### Added
+- **Welcome popup** on the first load after installing or updating: where to pick the AI model, where to switch features off, setting the Promises Book key, and where to report bugs.
+- **Tips** for easy-to-miss features, starting with your bedroll (move it or pack it by talking), with "Don't show again".
+
+### Fixed
+- NPCs are named the way SkyrimNet names them (a generic "Vampire Fledgling" is "Tinimanwe") in notices, narration and memories.
+- A repeated "let's go" right after someone agreed to follow no longer counts as a second follow.
+- The popup now keeps line breaks in longer texts.
+
 ## [0.2.0] - 2026-10-17
 
 First public release.

@@ -4,6 +4,7 @@
 #include <set>
 
 #include "Bio.h"
+#include "Confirm.h"
 #include "Game.h"
 #include "JsonUtil.h"
 #include "Bonds.h"
@@ -332,11 +333,11 @@ namespace MundaneMatters::Ledger
 			b.how = how;
 			if (how == "share" && IsDoubleBed(bed)) {
 				b.hostSpot = bed->GetFormID();
-				Game::Notify(std::format("You'll share {}'s bed.", npc->GetName()));
+				Game::Notify(std::format("You'll share {}'s bed.", Game::NameOf(npc)));
 			} else {
 				b.needRoll = true;
 			}
-			const std::string name = npc->GetName();
+			const std::string name = Game::NameOf(npc);
 			logger::info("sleeping at {}'s: {} (bed {:08X}{}){}", name, b.how, b.bed, b.needRoll ? ", bedroll once the player is by the bed" : "",
 				agreed.empty() ? " - not said; by how close they are" : "");
 			(void)player;
@@ -355,7 +356,7 @@ namespace MundaneMatters::Ledger
 			if (!bed) {
 				return;
 			}
-			const std::string name = npc->GetName();
+			const std::string name = Game::NameOf(npc);
 			if (b.how == "player_floor") {
 				auto* roll = BedrollHere(player->GetActorBase());
 				if (!roll) {
@@ -368,6 +369,12 @@ namespace MundaneMatters::Ledger
 				b.originalOwner = 0;
 				b.hostSpot = b.hostBed;
 				Game::Notify(std::format("{} made up a bedroll for you on the floor.", name));
+				// Easy to miss: the bedroll can be moved or packed by talking.
+				Confirm::Tip("bedroll", "Your bedroll",
+					"You can move it or pack it away just by saying so.\n\n"
+					"\"I'll move my bedroll here.\" - it moves to your feet.\n"
+					"\"*I pack my bedroll*\" - it's packed away.\n"
+					"\"Place my bedroll here.\" - it's laid out again where you stand.");
 			} else {
 				auto* roll = BedrollHere(npc->GetActorBase());
 				if (!roll) {
@@ -540,7 +547,7 @@ namespace MundaneMatters::Ledger
 				}
 				if (inBed) {
 					Rest::LieDown(npc, spot);
-					logger::info("sleeping at {}'s: the player lies down; {} goes to bed too", npc->GetName(), npc->GetName());
+					logger::info("sleeping at {}'s: the player lies down; {} goes to bed too", Game::NameOf(npc), Game::NameOf(npc));
 				} else {
 					Rest::GetUp(npc);
 				}
@@ -704,7 +711,7 @@ namespace MundaneMatters::Ledger
 						}
 					}
 					if (Game::Hours() - since > 0.5f) {
-						Game::Notify(std::format("You're welcome to sleep at {}'s.", npc->GetName()));
+						Game::Notify(std::format("You're welcome to sleep at {}'s.", Game::NameOf(npc)));
 					}
 				}
 			}
@@ -1092,7 +1099,7 @@ namespace MundaneMatters::Ledger
 			if (auto it = std::ranges::find_if(g_beds, [bed](const BedLoan& b) { return b.bed == bed->GetFormID(); }); it != g_beds.end()) {
 				it->until = (std::max)(it->until, Game::Hours() + hours);
 				it->guest = it->guest && guest;
-				logger::info("bed {:08X} of {} already lent; the loan runs on", it->bed, npc->GetName());
+				logger::info("bed {:08X} of {} already lent; the loan runs on", it->bed, Game::NameOf(npc));
 				return;
 			}
 		}
@@ -1106,9 +1113,9 @@ namespace MundaneMatters::Ledger
 		SetBedOwner(bed, Game::Player()->GetActorBase());
 		logger::info("bed {:08X}: owner now {}", bed->GetFormID(), bed->GetOwner() == Game::Player()->GetActorBase() ? "the player" : "NOT the player");
 		if (guest) {
-			logger::info("bed {:08X} of {} is the player's for this visit (always welcome)", loan.bed, npc->GetName());
+			logger::info("bed {:08X} of {} is the player's for this visit (always welcome)", loan.bed, Game::NameOf(npc));
 		} else {
-			logger::info("bed {:08X} of {} lent to the player for {} h", loan.bed, npc->GetName(), hours);
+			logger::info("bed {:08X} of {} lent to the player for {} h", loan.bed, Game::NameOf(npc), hours);
 		}
 		{
 			std::scoped_lock l(g_lock);
@@ -1154,7 +1161,7 @@ namespace MundaneMatters::Ledger
 				logger::warn("grants: '{}': no one found for '{}'", id, who);
 				continue;
 			}
-			const std::string name = npc->GetName();
+			const std::string name = Game::NameOf(npc);
 			if (type == "offer_bed") {
 				// The place to sleep they offered in a conversation that wasn't caught: waiting at their home.
 				Promises::Promise p;

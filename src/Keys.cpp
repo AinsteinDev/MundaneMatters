@@ -95,7 +95,7 @@ namespace MundaneMatters::Keys
 				player->AddObjectToContainer(key, nullptr, 1, nullptr);
 			}
 			Game::Notify(std::format("You have {}.", key->GetName()));
-			logger::info("key: {} handed over {}", npc->GetName(), key->GetName());
+			logger::info("key: {} handed over {}", Game::NameOf(npc), key->GetName());
 		}
 
 		void Lock(RE::TESObjectREFR* door, bool locked)
@@ -111,7 +111,7 @@ namespace MundaneMatters::Keys
 			return false;
 		}
 		const auto id = npc->GetFormID();
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		const std::string player = Game::Player()->GetName();
 		if (Has(id)) {
 			return true;  // mentioned again; it's already on the player's ring
@@ -179,7 +179,7 @@ namespace MundaneMatters::Keys
 			player->RemoveItem(key, 1, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, npc && !npc->IsDead() ? npc : nullptr);
 		}
 		if (notify) {
-			Game::Notify(std::format("{} took their key back.", npc ? npc->GetName() : "They"));
+			Game::Notify(std::format("{} took their key back.", npc ? Game::NameOf(npc) : "They"));
 		}
 		logger::info("key: {:08X} took their key back", npcId);
 	}
@@ -250,7 +250,7 @@ namespace MundaneMatters::Keys
 						g_opened.push_back({ door->GetFormID(), id });
 					}
 				}
-				logger::info("key: {}'s door opens for the player", npc->GetName());
+				logger::info("key: {}'s door opens for the player", Game::NameOf(npc));
 				break;
 			}
 		});

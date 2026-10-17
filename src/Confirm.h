@@ -55,6 +55,11 @@ namespace MundaneMatters::Confirm
 	// queued). False only when PrismaUI is unavailable or the queue is full.
 	bool Ask(const Offer& offer, std::function<void(Choice)> done);
 
+	// A one-off tip about a feature that's easy to miss (popup: "Got it" / "Don't show again"). Shown each
+	// time it's called until the player picks "Don't show again" (remembered next to the log, per install).
+	// Game thread.
+	void Tip(const std::string& id, const std::string& title, const std::string& text);
+
 	// After a picker popup answered kAccept / kAlt: what was chosen and how many. Game thread.
 	std::pair<RE::FormID, std::int32_t> LastPick();
 

@@ -1,6 +1,6 @@
 plugin:
   name: MundaneMatters
-  version: "0.2.0"
+  version: "0.2.1"
   description: "Roleplay: NPCs do what they say - trade, rooms, gifts, stays, meals, meetings and promises, from natural speech"
   icon: "\U0001F91D"
 

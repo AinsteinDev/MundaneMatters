@@ -948,7 +948,7 @@ namespace MundaneMatters::MoveIn
 
 	bool Invite(RE::Actor* npc)
 	{
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 		const auto id = npc->GetFormID();
 		// The real relationship decides (Bonds), not a few warm words: Friend and above.
 		if (!Promises::IsClose(npc)) {

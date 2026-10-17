@@ -526,9 +526,9 @@ namespace MundaneMatters::Rest
 		// Game thread. Says no in character (SkyrimNet makes the NPC answer it) and shows why.
 		bool Decline(RE::Actor* npc, const std::string& why, const std::string& note)
 		{
-			Game::Notify(std::format("{} ({}): {}", npc->GetName(), RelationName(npc), note));
+			Game::Notify(std::format("{} ({}): {}", Game::NameOf(npc), RelationName(npc), note));
 			Game::Narrate(why, npc);
-			logger::info("rest: {} declined ({})", npc->GetName(), note);
+			logger::info("rest: {} declined ({})", Game::NameOf(npc), note);
 			return true;
 		}
 	}
@@ -567,7 +567,7 @@ namespace MundaneMatters::Rest
 		}
 		auto* player = Game::Player();
 		const std::string playerName = player->GetName();
-		const std::string name = npc->GetName();
+		const std::string name = Game::NameOf(npc);
 
 		// Staying at their place already: what was agreed decides who sleeps where (a bedroll, their bed,
 		// sharing). Going to bed is then just going to bed - nothing to refuse, nothing to re-lend; the

@@ -589,7 +589,7 @@ namespace MundaneMatters::VanillaLines
 			}
 			Papyrus::CallMethod(npc, "ObjectReference", "Say", nullptr, topic, static_cast<RE::Actor*>(nullptr), false);
 			MarkSaid(RE::TESForm::LookupByID<RE::TESTopicInfo>(c.info));
-			logger::info("vanilla: {} says \"{}\" (not clickable; said instead)", npc->GetName(), c.text);
+			logger::info("vanilla: {} says \"{}\" (not clickable; said instead)", Game::NameOf(npc), c.text);
 		}
 
 		// Game thread: this option, picked. aiSpoke: the NPC's AI already said its answer.
@@ -599,7 +599,7 @@ namespace MundaneMatters::VanillaLines
 			if (!npc || npc->IsDead() || npc->IsInCombat() || Game::Player()->IsInCombat() || !MenuWith(npc)) {
 				return;
 			}
-			logger::info("vanilla: {} - \"{}\"{}", npc->GetName(), c.text, aiSpoke ? " (the AI said its answer: skipping the recording)" : "");
+			logger::info("vanilla: {} - \"{}\"{}", Game::NameOf(npc), c.text, aiSpoke ? " (the AI said its answer: skipping the recording)" : "");
 			NoteFired(npcId, c, !aiSpoke);
 			if (JsonUtil::Lower(c.text).find("(intimidate)") != std::string::npos) {
 				Brawls::Threatened(npcId);
@@ -646,7 +646,7 @@ namespace MundaneMatters::VanillaLines
 			}
 			Confirm::Offer offer;
 			offer.title = c.questName.empty() ? "Say this?" : "Say this? (" + c.questName + ")";
-			offer.npc = npc->GetName();
+			offer.npc = Game::NameOf(npc);
 			offer.detail = "\"" + c.text + "\"";
 			offer.showPrice = false;
 			offer.seconds = 0;
@@ -710,7 +710,7 @@ namespace MundaneMatters::VanillaLines
 		for (auto& c : options) {
 			listed += (listed.empty() ? "\"" : ", \"") + c.text + "\"";
 		}
-		logger::info("vanilla: \"{}\" to {} isn't one of the {} option(s) on screen; the reply decides ({})", text, npc->GetName(), options.size(), listed);
+		logger::info("vanilla: \"{}\" to {} isn't one of the {} option(s) on screen; the reply decides ({})", text, Game::NameOf(npc), options.size(), listed);
 	}
 
 	void OnNpcLine(RE::FormID npcId, const std::string& text)
