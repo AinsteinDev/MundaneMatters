@@ -3829,5 +3829,29 @@ for label, args, want in [
 ]:
     check(f"meet: {label}", meet_counts(*args), want)
 
+def pay_gold_kept(line, gold):
+    """Pledges.cpp: StatesAmount / RepaysDebt - the gold of a pay promise only when the player said it or repays a debt."""
+    l = line.lower()
+    words = re.findall(r"[a-z0-9']+", l)
+    states = str(gold) in l or any(w in words for w in ("five", "ten", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
+                                                         "eighty", "ninety", "hundred", "thousand", "dozen", "score"))
+    repays = any(w in l for w in ("pay you back", "pay back", "payback", "repay", "what i owe", "i owe you", "my debt", "the loan",
+                                  "pay it back", "pay that back", "return the gold", "return your gold", "give it back", "give you back",
+                                  "give back"))
+    return gold if states or repays else 0
+
+
+print("\n== a pay promise's amount comes from the player (Pledges.cpp FromExchange)")
+for label, args, want in [
+    ("Jenassa: 'some more gold once i get paid' after paying her 50 fee",
+     ("come then follow me we kill this troll toady, and if we suceede i'll give you some more gold once i get paid form aela", 50), 0),
+    ("'I'll pay you back the 50 gold'", ("I'll pay you back the 50 gold, I swear.", 50), 50),
+    ("'I'll pay you back' (amount from the loan)", ("Don't worry, I'll pay you back.", 50), 50),
+    ("'I'll give you fifty more tomorrow'", ("I'll give you fifty more tomorrow.", 50), 50),
+    ("'I'll give you a share of the reward'", ("I'll give you a share of the reward.", 100), 0),
+]:
+    check(f"pay: {label}", pay_gold_kept(*args), want)
+
+
 print(f"\n{'ALL OK' if fails == 0 else f'{fails} FAILED'}")
 sys.exit(1 if fails else 0)

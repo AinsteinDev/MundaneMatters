@@ -202,7 +202,10 @@ namespace MundaneMatters::Pledges
 				return std::format("find {}", p.item.empty() ? "what they lost" : p.item);
 			}
 			if (p.type == "pay") {
-				return p.gold > 0 ? std::format("pay back {} gold", p.gold) : "pay back what is owed";
+				if (p.gold > 0) {
+					return std::format("pay back {} gold", p.gold);
+				}
+				return !p.what.empty() ? p.what : "pay back what is owed";
 			}
 			if (p.type == "visit") {
 				if (!p.what.empty()) {
@@ -224,6 +227,35 @@ namespace MundaneMatters::Pledges
 		// taken back.
 		constexpr float kOpenEnded = 1.0e9f;
 
+		// The player's line says this amount: "50", "fifty", "a hundred".
+		bool StatesAmount(const std::string& line, std::int32_t gold)
+		{
+			const auto l = JsonUtil::Lower(line);
+			if (l.find(std::to_string(gold)) != std::string::npos) {
+				return true;
+			}
+			for (auto* w : { "five", "ten", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred",
+					 "thousand", "dozen", "score" }) {
+				if (std::ranges::contains(JsonUtil::Words(l), std::string(w))) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		// Paying back a debt: the amount owed comes from the earlier lines, rightly.
+		bool RepaysDebt(const std::string& line)
+		{
+			const auto l = JsonUtil::Lower(line);
+			for (auto* w : { "pay you back", "pay back", "payback", "repay", "what i owe", "i owe you", "my debt", "the loan", "pay it back",
+					 "pay that back", "return the gold", "return your gold", "give it back", "give you back", "give back" }) {
+				if (l.find(w) != std::string::npos) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		bool OpenEnded(const json& o, const std::string& playerLine)
 		{
 			if (JsonUtil::Str(o, "open") == "true") {
@@ -234,7 +266,11 @@ namespace MundaneMatters::Pledges
 					 "when i'm next", "if i'm ever", "if im ever", "when i pass", "if i pass", "when i come through", "when i'm back in", "when im back in",
 					 "work for me", "you can stay with me", "stay with me if", "you can always", "whenever you need", "if you ever need",
 					 "if anyone bothers you", "if anyone ever", "if things go wrong", "come to me if", "you know where to find me",
-					 "you can come to me", "you can count on me", "any time you need", "anytime you need" }) {
+					 "you can come to me", "you can count on me", "any time you need", "anytime you need",
+					 // waiting on something else first ("more gold once I get paid", "if we succeed")
+					 "once i get paid", "when i get paid", "after i get paid", "once i'm paid", "once im paid", "when i'm paid",
+					 "once i get my reward", "when i get my reward", "if we succeed", "if we win", "if we make it", "once the job",
+					 "after the job", "when the job's done", "once it's done", "once its done" }) {
 				if (l.find(w) != std::string::npos) {
 					return true;
 				}
@@ -876,6 +912,15 @@ namespace MundaneMatters::Pledges
 			}
 			p.item = JsonUtil::Str(o, "item");
 			p.gold = static_cast<std::int32_t>(std::clamp(JsonUtil::Num(o, "gold").value_or(0.0), 0.0, 1e6));
+			// An amount only from the player's own line, or a debt being paid back: not the NPC's fee
+			// or money already handed over ("I'll give you some more gold once I get paid").
+			if (p.gold > 0 && !StatesAmount(playerLine, p.gold) && !RepaysDebt(playerLine)) {
+				logger::info("pledge: \"{}\" names no amount; {} gold dropped (it came from the earlier lines)", playerLine, p.gold);
+				p.gold = 0;
+				if (p.what.find_first_of("0123456789") != std::string::npos) {
+					p.what = JsonUtil::Lower(playerLine).find("more") != std::string::npos ? "give them more gold" : "give them some gold";
+				}
+			}
 			p.when = JsonUtil::Str(o, "time_hint");
 			p.words = playerLine.size() > 140 ? playerLine.substr(0, 137) + "..." : playerLine;
 			p.made = now;

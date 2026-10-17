@@ -10,6 +10,7 @@
 - NPCs are named the way SkyrimNet names them (a generic "Vampire Fledgling" is "Tinimanwe") in notices, narration and memories.
 - A repeated "let's go" right after someone agreed to follow no longer counts as a second follow.
 - The popup now keeps line breaks in longer texts.
+- A pay promise only carries an amount you actually said ("I'll give you some more gold once I get paid" no longer becomes "pay back 50 gold"), and one that waits on a payday or a job has no deadline.
 
 ## [0.2.0] - 2026-10-17
 

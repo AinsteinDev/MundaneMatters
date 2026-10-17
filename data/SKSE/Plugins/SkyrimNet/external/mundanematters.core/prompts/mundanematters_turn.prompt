@@ -142,7 +142,7 @@ Examples:
 player_promises: what the PLAYER commits, in THEIR line, to do for the NPC later, listed when the NPC takes it in (agrees, thanks them, doesn't refuse). Not the NPC's promises (those are section 3).
 - type: "bring" (bring or give them something: "I'll bring you a bottle of mead tomorrow"), "find" (find something lost: "I'll find your ring"), "pay" (pay back money: "I'll pay you back the 50 gold"), "visit" (come back or see them: "I'll come by tomorrow evening"), "deliver" (take something of theirs to someone else: "I'll take it to your sister"), "check" (look in on someone for them: "I'll check on your brother"), "other" (anything else: "I'll make it up to you", "I'll help with the mill").
 Saying yes to a favour the NPC asked in the earlier lines ("Could you bring me some salmon next time?" - "Sure, I will.") IS a player promise of that kind, about that thing or person.
-- item: the thing in plain words ("nord mead", "ring", "" when none); gold: the amount for "pay".
+- item: the thing in plain words ("nord mead", "ring", "" when none); gold: the amount for "pay", only when the PLAYER says it in this line or is paying back a debt; 0 for "some more gold", "a share", "a bonus" (never the NPC's fee or money already handed over).
 - in_hours: your estimate of when it's due, from the time now ("tomorrow" about 24, "tonight" a few hours, "in a few days" 72); 0 when not said. time_hint: the words used ("tomorrow evening", "" when none).
 - when: "now" for a new promise, "cancel" when the PLAYER takes one back ("sorry, I can't bring the mead after all").
 - open: true for a standing offer with no deadline - something the PLAYER will be there for, not a task to do by a time ("you can work for me", "you can stay with me if things go wrong", "if anyone bothers you, come to me") - and for a promise tied to no time at all ("whenever I'm in Windhelm I'll visit you", "next time I'm in town"); false for a task with a time.
@@ -156,6 +156,7 @@ Examples:
 - PLAYER: "I'll bring you a bottle of mead tomorrow." / NPC: "I'll hold you to that!" -> player_promises: bring "nord mead", in_hours 24, time_hint "tomorrow".
 - PLAYER: "Don't worry, I'll find your ring." / NPC: "Would you? Thank you!" -> player_promises: find "ring".
 - PLAYER: "I'll pay you back the 50 gold, I swear." / NPC: "You'd better." -> player_promises: pay, gold 50.
+- (earlier: the PLAYER paid her 50 gold fee) PLAYER: "Follow me, and I'll give you some more gold once I get paid." / NPC: "Lead the way." -> player_promises: pay, gold 0, what "give them more gold once paid", open true.
 - PLAYER: "I might stop by sometime." / NPC: "Sure." -> no player_promises.
 - (earlier: NPC "Would you take this letter to my sister Ysolda?") PLAYER: "Of course, I'll see she gets it." / NPC: "Thank you!" -> player_promises: deliver "letter".
 - PLAYER: "Sorry, I can't bring the mead after all." / NPC: "Oh. Alright." -> player_promises: bring "mead", when "cancel".
