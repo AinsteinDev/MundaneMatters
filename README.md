@@ -5,7 +5,7 @@
 **NPCs do what they say.**
 
 A roleplay add-on for **SkyrimNet** for Skyrim that lets the everyday, *mundane* things you talk about actually happen.
-Ask for a room, a drink, a seat by the fire, a place to stay. Promise to bring someone mead. Let a hunter carry your kill.
+Ask for a room, a drink, a seat by the fire, a place to stay. Promise to bring someone mead. Let a someone you are hunting carry your kill.
 If they agree in the conversation, the game makes it real.
 
 And because it's real, the people you meet stop being shopkeepers and quest-givers: they become people you *know*.
