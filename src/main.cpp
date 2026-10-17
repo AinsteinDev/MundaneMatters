@@ -99,16 +99,18 @@ namespace
 			std::this_thread::sleep_for(std::chrono::seconds(10));  // the HUD up, loading screens gone
 			SKSE::GetTaskInterface()->AddTask([file] {
 				MundaneMatters::Confirm::Offer offer;
-				offer.title = std::format("Mundane Matters {} installed", kVersion);
-				offer.npc = "Welcome";
+				offer.title = std::format("Mundane Matters {}", kVersion);
+				offer.npc = "IMPORTANT: set up once";
 				offer.detail =
-					"NPCs now do what they say: rooms, gifts, places to stay, meetings, promises.\n\n"
-					"AI model: SkyrimNet > AI Models (near the bottom) > Mundane Matters. "
-					"Pick any model you like; the default is DeepSeek V4 Flash.\n\n"
-					"Features: SkyrimNet > Settings > Plugins > MundaneMatters. "
-					"Switch off anything you don't want, and set the Promises Book Key there to a key you don't use "
-					"(the default P may clash with other mods).\n\n"
-					"Notices starting with MM_ come from this mod. Bugs: the Mundane Matters channel on the SkyrimNet Discord.";
+					"1. AI model\n"
+					"SkyrimNet > AI Models (near the bottom) > Mundane Matters\n"
+					"Default: DeepSeek V4 Flash\n\n"
+					"2. Promises Book key\n"
+					"SkyrimNet > Settings > Plugins > MundaneMatters\n"
+					"Pick a key you don't use (P may clash)\n\n"
+					"3. Features\n"
+					"Same page: switch off what you don't want\n\n"
+					"MM_ notices come from this mod.";
 				offer.showPrice = false;
 				offer.seconds = 0;
 				offer.silentRefuse = false;
