@@ -38,7 +38,7 @@ and the world quietly keeps up.
 > barely afford matters. **With Mundane Matters, she actually hands it to me.**
 >
 > Out hunting with **Ronja** (a modded NPC in Whiterun), I mentioned the inn costs me a hundred a night. She offered me a corner by her
-> hearth. That evening she made up a bedroll for me on her floor and kept her own bed, and when I lay down, she went to bed too.
+> hearth. That evening she made up a bedroll for me on her floor and kept her own bed.
 
 > ⚠️ **Made and tested by one person.** Mundane Matters is a solo project, tested only on my own game and mod list.
 > It will have rough edges on setups I haven't seen, so please [report what you find](#reporting-bugs).
