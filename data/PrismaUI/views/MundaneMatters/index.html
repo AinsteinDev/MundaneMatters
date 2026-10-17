@@ -5,8 +5,8 @@
 <title>Mundane Matters</title>
 <!--
   MundaneMatters popup (PrismaUI). C++ calls mundaneMattersShow({title, npc, detail, price, gold, seconds, showPrice,
-  accept, decline, items}); the page answers through window.mundaneMattersChoice(
-  "accept" | "decline" | "timeout" | "pick:<formid hex>:<qty>").
+  receive, hint, accept, decline, alt, chosen, items}); alt: a third button's label ("" = none); receive: the player is paid the price (selling). the page answers through window.mundaneMattersChoice(
+  "accept" | "decline" | "timeout" | "alt" | "pick:<formid hex>:<qty>" | "alt:<formid hex>:<qty>").
   seconds <= 0: no timer (gifts wait for the player). items: picker mode (choose what to give).
   Keys (yes/no popups only): E / Enter accept, Esc / Tab / R decline. Picker: mouse, Esc backs out.
 -->
@@ -137,6 +137,7 @@
 	<div class="timer" id="timer"><i id="bar"></i></div>
 	<div class="buttons">
 		<button class="accept" id="accept"><span id="acceptText">Accept</span><kbd id="acceptKey">E</kbd></button>
+		<button class="alt" id="alt"><span id="altText"></span></button>
 		<button id="decline"><span id="declineText">Decline</span><kbd id="declineKey">Tab</kbd></button>
 	</div>
 </div>
@@ -154,6 +155,8 @@
 	const GRACE_MS = 800;
 	let picking = false;
 	let selected = null;
+	let chosen = "Giving: ";
+	let hasAlt = false;
 
 	function answer(choice) {
 		if (!open) return;
@@ -179,8 +182,9 @@
 		$("qty").max = item.count;
 		$("qty").value = 1;  // a new pick starts at one
 		$("qtyMax").textContent = "of " + item.count;
-		$("hint").textContent = "Giving: " + item.name;
+		$("hint").textContent = chosen + item.name;
 		$("accept").disabled = false;
+		$("alt").disabled = false;
 	}
 
 	function buildPicker(items) {
@@ -194,7 +198,7 @@
 			name.textContent = it.name + (it.count > 1 ? "  (x" + it.count + ")" : "") + (it.equipped ? "  (equipped)" : "");
 			const meta = document.createElement("span");
 			meta.className = "meta";
-			meta.textContent = it.id === "F" ? "" : it.value + " gold";
+			meta.textContent = it.note ? it.note : it.id === "F" || !(it.value > 0) ? "" : it.value + " gold";
 			b.appendChild(name);
 			b.appendChild(meta);
 			b.addEventListener("click", () => select(it, b));
@@ -208,14 +212,22 @@
 		$("detail").textContent = o.detail || "";
 		$("acceptText").textContent = o.accept || "Accept";
 		$("declineText").textContent = o.decline || "Decline";
+		hasAlt = !!o.alt;
+		$("altText").textContent = o.alt || "";
+		$("alt").style.display = hasAlt ? "" : "none";
+		$("alt").disabled = false;
+		chosen = o.chosen || "Giving: ";
 		picking = Array.isArray(o.items) && o.items.length > 0;
 		selected = null;
 		$("picker").classList.toggle("on", picking);
 		if (picking) {
 			buildPicker(o.items);
+			// One of each (promises): no "how many" box.
+			$("qty").parentElement.style.display = o.items.some((it) => it.count > 1) ? "" : "none";
+			$("alt").disabled = true;  // needs a choice first
 			$("qty").value = 1;
 			$("qtyMax").textContent = "";
-			$("hint").textContent = "Click an item, then Give.";
+			$("hint").textContent = o.hint || "Click an item, then Give.";
 			$("list").scrollTop = 0;
 		}
 		// Keyboard hints only where keys work (yes/no popups).
@@ -225,8 +237,9 @@
 		$("priceRow").style.display = paid ? "" : "none";
 		$("purse").style.display = paid ? "" : "none";
 		$("price").textContent = o.price;
-		const short = paid && o.gold < o.price;
-		$("purse").textContent = "You carry " + o.gold + " gold";
+		// Selling: the price is paid to the player, so their purse can't be short.
+		const short = paid && !o.receive && o.gold < o.price;
+		$("purse").textContent = o.receive ? "You receive this; you carry " + o.gold + " gold" : "You carry " + o.gold + " gold";
 		$("purse").classList.toggle("short", short);
 		$("accept").disabled = short || picking;  // a picker needs a choice first
 		// No timer (gifts): it waits for the player.
@@ -252,6 +265,16 @@
 			return;
 		}
 		answer("accept");
+	});
+	$("alt").addEventListener("click", () => {
+		if (!hasAlt || $("alt").disabled) return;
+		if (picking) {
+			if (!selected) return;
+			const n = Math.min(Math.max(1, parseInt($("qty").value || "1", 10)), selected.count);
+			answer("alt:" + selected.id + ":" + n);
+			return;
+		}
+		answer("alt");
 	});
 	$("decline").addEventListener("click", () => answer("decline"));
 	document.addEventListener("keydown", (e) => {

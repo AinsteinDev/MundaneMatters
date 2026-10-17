@@ -4,9 +4,14 @@
 #include "Game.h"
 #include "Papyrus.h"
 #include "JsonUtil.h"
+#include "Bonds.h"
+#include "Keys.h"
+#include "Loans.h"
+#include "Pledges.h"
 #include "Ledger.h"
 #include "Services.h"
 #include "SkyrimNetBridge.h"
+#include "Trust.h"
 
 namespace MundaneMatters::Promises
 {
@@ -14,6 +19,7 @@ namespace MundaneMatters::Promises
 	{
 		using Clock = std::chrono::steady_clock;
 		constexpr auto kDedupWindow = 45s;
+		constexpr auto kRepeatWindow = 180s;  // a promised hand-out "given" again this soon is the AI repeating itself
 		constexpr std::int32_t kMaxItems = 10;
 
 		// ---- fuzzy item names ----
@@ -251,17 +257,20 @@ namespace MundaneMatters::Promises
 			}
 		};
 
-		// True when this NPC already handed the player something matching, moments ago.
-		bool AlreadyGiven(RE::Actor* npc, std::function<bool(RE::TESForm*)> matches)
+		// What this NPC handed the player moments ago that matches (nullptr if nothing did): another
+		// mod's hand-over (SeverActions' GiveItem), a sale, or ours.
+		RE::TESForm* AlreadyGiven(RE::Actor* npc, std::function<bool(RE::TESForm*)> matches)
 		{
 			std::scoped_lock l(g_lock);
 			const auto cutoff = Clock::now() - kDedupWindow;
 			for (auto& t : g_transfers) {
-				if (t.at >= cutoff && t.from == npc->GetFormID() && t.to == 0x14 && matches(RE::TESForm::LookupByID(t.item))) {
-					return true;
+				if (t.at >= cutoff && t.from == npc->GetFormID() && t.to == 0x14) {
+					if (auto* f = RE::TESForm::LookupByID(t.item); matches(f)) {
+						return f;
+					}
 				}
 			}
-			return false;
+			return nullptr;
 		}
 
 		void Remember(RE::Actor* npc, const std::string& what)
@@ -327,6 +336,49 @@ namespace MundaneMatters::Promises
 			RE::TESBoundObject* item = nullptr;
 		};
 
+		// An animal named as the thing given ("the saber cat on the spit", "some deer"): its meat.
+		// Any animal or creature of the game and its mods: a creature race's name words (Sabre Cat, Horker,
+		// a mod's Ring-necked Pheasant), plus the everyday words for them.
+		bool NamesAnAnimal(const std::vector<std::string>& wanted)
+		{
+			static const std::unordered_set<std::string> words = [] {
+				std::unordered_set<std::string> w{ "saber", "sabre", "cat", "bear", "wolf", "deer", "elk", "horker", "mammoth", "goat", "rabbit",
+					"hare", "skeever", "mudcrab", "slaughterfish", "chicken", "boar", "fox", "troll", "cow", "pig", "horse", "dog", "salmon", "fish",
+					"pheasant", "duck", "goose", "venison" };
+				for (auto* r : RE::TESDataHandler::GetSingleton()->GetFormArray<RE::TESRace>()) {
+					if (!r || !r->GetName() || !*r->GetName() ||
+						!(r->HasKeywordString("ActorTypeAnimal") || r->HasKeywordString("ActorTypeCreature"))) {
+						continue;
+					}
+					for (auto& t : Tokens(r->GetName(), true)) {
+						if (t.size() >= 3) {
+							w.insert(t);
+						}
+					}
+				}
+				logger::info("give_item: {} animal words known (creature races included)", w.size());
+				return w;
+			}();
+			// Every word an animal's ("saber cat", "deer"): not "fire salts" (a Fire Atronach is a creature too).
+			return !wanted.empty() && std::ranges::all_of(wanted, [](const std::string& w) { return words.contains(w); });
+		}
+
+		// The game's own name for an animal's meat.
+		std::vector<std::string> MeatWords(const std::vector<std::string>& wanted)
+		{
+			static const std::unordered_map<std::string, const char*> kMeat{ { "deer", "venison" }, { "elk", "venison" }, { "cow", "beef" },
+				{ "goat", "goat" }, { "mammoth", "mammoth" }, { "rabbit", "rabbit" }, { "hare", "rabbit" }, { "horker", "horker" },
+				{ "salmon", "salmon" }, { "chicken", "chicken" }, { "horse", "horse" }, { "dog", "dog" }, { "pheasant", "pheasant" },
+				{ "boar", "boar" }, { "bear", "bear" }, { "mudcrab", "mudcrab" }, { "slaughterfish", "slaughterfish" } };
+			std::vector<std::string> out;
+			for (auto& w : wanted) {
+				if (auto it = kMeat.find(w); it != kMeat.end()) {
+					out.push_back(it->second);
+				}
+			}
+			return out;
+		}
+
 		ItemChoice ChooseItem(RE::Actor* npc, const std::vector<std::string>& wanted, std::int32_t maxValue)
 		{
 			ItemChoice c;
@@ -338,6 +390,48 @@ namespace MundaneMatters::Promises
 				c.world = BestInWorld(wanted, maxValue);
 			}
 			c.item = c.own.obj && c.own.score + 1.0 >= c.world.score ? c.own.obj : c.world.obj;
+			// "Saber cat" matched a thing named after the animal (a hunting mod's token, a trophy), not food:
+			// what's handed over is its meat, or, with none of that, a proper meal.
+			// Only when nothing real of theirs matched (they'd conjure a non-food thing named after the animal):
+			// an elk carcass or pelt they actually carry is handed over as asked.
+			if (!IsGenericMeal(wanted) && NamesAnAnimal(wanted) && !IsFood(c.item) && !(c.item && c.item == c.own.obj)) {
+				// Their own food first (a cooked dish of it they carry), then the game's (venison for a deer).
+				const auto meatWords = MeatWords(wanted);
+				Match food;
+				auto consider = [&](RE::TESBoundObject* obj, RE::TESObjectREFR* from) {
+					if (!IsFood(obj) || obj->GetGoldValue() > maxValue) {
+						return;
+					}
+					double s = Score(wanted, obj->GetName());
+					if (!meatWords.empty()) {
+						s = (std::max)(s, Score(meatWords, obj->GetName()));
+					}
+					if (from) {
+						s += 0.5;  // what they have on them
+					}
+					if (s > food.score && s > (from ? 0.5 : 0.0)) {
+						food = { obj, s, from };
+					}
+				};
+				for (auto* store : Stores(npc)) {
+					for (auto& [obj, entry] : store->GetInventory()) {
+						if (entry.first > 0) {
+							consider(obj, store);
+						}
+					}
+				}
+				for (auto* f : RE::TESDataHandler::GetSingleton()->GetFormArray<RE::AlchemyItem>()) {
+					consider(f, nullptr);
+				}
+				if (!food.obj) {
+					food = PickMeal(npc, maxValue);
+				}
+				logger::info("give_item: '{}' names an animal; {} instead of {}", wanted.empty() ? "" : wanted.front(), food.obj ? food.obj->GetName() : "nothing",
+					c.item ? c.item->GetName() : "nothing");
+				c.own = food.from ? food : Match{};
+				c.world = food.from ? Match{} : food;
+				c.item = food.obj;
+			}
 			return c;
 		}
 
@@ -354,22 +448,57 @@ namespace MundaneMatters::Promises
 			if (wanted.empty()) {
 				return Outcome::kImpossible;
 			}
+			const bool loans = SkyrimNet::ConfigBool("features.loans", true);
+			// "Can I keep it?" - "Keep it": what they lent becomes the player's; nothing new changes
+			// hands. Checked first: the loan itself was a transfer moments ago.
+			if (!p.loan && loans) {
+				if (auto kept = Loans::LetKeep(npc, p.item); !kept.empty()) {
+					Game::Notify(std::format("{} says you can keep the {}.", npc->GetName(), kept));
+					return Outcome::kKept;
+				}
+			}
 			const bool meal = IsGenericMeal(wanted);
-			if (AlreadyGiven(npc, [&](RE::TESForm* f) { return f && (meal ? IsFood(f) : Score(wanted, f->GetName()) > 0.0); })) {
-				logger::info("give_item '{}': {} already handed it over (another mod)", p.item, npc->GetName());
+			if (auto* got = AlreadyGiven(npc, [&](RE::TESForm* f) { return f && (meal ? IsFood(f) : Score(wanted, f->GetName()) > 0.0); })) {
+				// Handed over moments ago (a kept promise, or another mod): not a second one. Say so,
+				// as the NPC may talk as if they were handing it over now.
+				logger::info("give_item '{}': {} already handed it over moments ago", p.item, npc->GetName());
+				Game::Notify(std::format("{} already gave you {} (check your inventory).", npc->GetName(), got->GetName()));
 				return Outcome::kKept;
 			}
-
-			const auto qty = std::clamp(p.qty, 1, kMaxItems);
+			bool loan = p.loan && loans;
+			auto qty = std::clamp(p.qty, 1, kMaxItems);
 			const auto maxValue = static_cast<std::int32_t>(SkyrimNet::ConfigFloat("tuning.max_promise_item_value", 100.0f));
 
 			auto choice = ChooseItem(npc, wanted, maxValue);
 			auto& own = choice.own;
 			auto* item = choice.item;
+			// Not on them or in their stock: a cheap tool of their own trade they fetch from the
+			// workshop (a blacksmith's pickaxe), else they realise they don't have one and say so.
+			if (!item || (item != own.obj && item->IsWeapon())) {
+				if (auto* tool = Loans::TradeTool(npc, p.item)) {
+					item = tool;
+					qty = 1;
+				}
+			}
 			if (!item) {
 				logger::info("give_item '{}': no matching item for {}", p.item, npc->GetName());
-				Game::DebugNotify(std::format("Mundane Matters: no item matches '{}'", p.item));
+				Game::Narrate(std::format("{} went to {} {} {}, but realised they didn't have one.", npc->GetName(), loan ? "lend" : "give",
+								  player->GetName(), p.item),
+					npc);
 				return Outcome::kImpossible;
+			}
+			// Only cheap, everyday things are lent; used-up things (food, potions) are simply given.
+			if (loan) {
+				bool consumable = false;
+				if (!Loans::Lendable(item, consumable)) {
+					if (consumable) {
+						loan = false;
+					} else {
+						logger::info("give_item '{}': {} won't lend {} (too valuable, or armour/weapon)", p.item, npc->GetName(), item->GetName());
+						Game::Narrate(std::format("{} thought twice about it: the {} was too valuable to lend out, friend or not.", npc->GetName(), item->GetName()), npc);
+						return Outcome::kImpossible;
+					}
+				}
 			}
 
 			std::int32_t fromInventory = 0;
@@ -384,10 +513,19 @@ namespace MundaneMatters::Promises
 			}
 			const auto given = fromInventory + conjured;
 			if (given <= 0) {
+				logger::info("give_item '{}': {} has no {} to spare", p.item, npc->GetName(), item->GetName());
+				Game::Narrate(std::format("{} went to {} {} the {}, but realised they didn't have one to spare.", npc->GetName(), loan ? "lend" : "give",
+								  player->GetName(), item->GetName()),
+					npc);
 				return Outcome::kImpossible;
 			}
 
 			const std::string name = item->GetName();
+			if (loan) {
+				logger::info("give_item '{}' -> {} x{} lent by {}", p.item, name, given, npc->GetName());
+				Loans::Borrow(npc, item, given, p.backInHours, true);
+				return Outcome::kKept;
+			}
 			logger::info("give_item '{}' -> {} x{} ({} from {}) from {}", p.item, name, given, fromInventory,
 				fromInventory == 0 ? "nowhere" : own.from == npc ? "their pockets" : "their shop stock", npc->GetName());
 			Game::Notify(given > 1 ? std::format("{} gave you {} ({}).", npc->GetName(), name, given) : std::format("{} gave you {}.", npc->GetName(), name));
@@ -517,6 +655,9 @@ namespace MundaneMatters::Promises
 			RE::TESObjectREFR* best = nullptr;
 			int bestRank = 0;
 			float bestDist = (std::numeric_limits<float>::max)();
+			RE::TESObjectREFR* ownBed = nullptr;  // their very own bed
+			float ownDist = (std::numeric_limits<float>::max)();
+			int householdBeds = 0;  // beds of their household faction here (a bunkhouse, an inn: many)
 			auto consider = [&](RE::TESObjectREFR* ref) {
 				auto* base = ref ? ref->GetBaseObject() : nullptr;
 				auto* furn = base ? base->As<RE::TESFurniture>() : nullptr;
@@ -539,6 +680,11 @@ namespace MundaneMatters::Promises
 					rank = owner ? 1 : 2;
 				}
 				const float dist = ref->GetPosition().GetDistance(player->GetPosition());
+				householdBeds += rank == 3 ? 1 : 0;
+				if (rank == 4 && dist < ownDist) {
+					ownBed = ref;
+					ownDist = dist;
+				}
 				if (rank > bestRank || (rank == bestRank && rank > 0 && dist < bestDist)) {
 					best = ref;
 					bestRank = rank;
@@ -552,10 +698,23 @@ namespace MundaneMatters::Promises
 				// Outdoors (a camp, "my bedroll by the fire"): only beds that are really theirs, nearby.
 				tes->ForEachReferenceInRange(player, 2000.0f, consider);
 			}
+			// Their own bed, always first. A place with many household beds (a bunkhouse, an inn) or rooms to
+			// rent is a business: its guest beds aren't theirs to give - only their own bed is.
+			if (ownBed) {
+				return ownBed;
+			}
+			if (householdBeds > 3 || !rentalBeds.empty()) {
+				static std::unordered_map<RE::FormID, RE::TESObjectCELL*> said;
+				if (said[npc->GetFormID()] != cell) {
+					said[npc->GetFormID()] = cell;
+					logger::info("bed: {} keeps a business here ({} guest beds); only their own bed could be lent", npc->GetName(), householdBeds);
+				}
+				return nullptr;
+			}
 			return bestRank > 0 ? best : nullptr;
 		}
 
-		Outcome OfferBed(RE::Actor* npc, const Promise&)
+		Outcome OfferBed(RE::Actor* npc, const Promise& p)
 		{
 			if (Ledger::HasBedLoan(npc->GetFormID())) {
 				return Outcome::kKept;
@@ -599,7 +758,8 @@ namespace MundaneMatters::Promises
 				}
 				return Outcome::kNotYet;
 			}
-			const float hours = SkyrimNet::ConfigFloat("tuning.bed_hours", 24.0f);
+			// "A day or two": a longer stay when one was given (a grant), else the usual night.
+			const float hours = p.backInHours > 0.0f ? p.backInHours : SkyrimNet::ConfigFloat("tuning.bed_hours", 24.0f);
 			Ledger::LoanBed(npc, bed, hours);
 			Game::Notify(std::format("You may sleep in {}'s bed.", npc->GetName()));
 			Remember(npc, std::format("{} let {} sleep in their bed.", npc->GetName(), Game::Player()->GetName()));
@@ -714,13 +874,113 @@ namespace MundaneMatters::Promises
 			} else {
 				SkyrimNet::AddMemory(npc->GetFormID(), std::format("{} gave {} {}.", player, npc->GetName(), what), 0.4f);
 			}
+			// Giving back what was taken, or a peace offering, is making amends: not a favour that
+			// earns warmth or a bond.
+			if (Trust::MakingAmends(npc->GetFormID())) {
+				logger::info("gift: {} is making amends with {}; no warmth or bond from it", player, npc->GetName());
+				return;
+			}
 			ConsiderWarmth(npc, mainItem, value, what);
+			if (value >= 50) {
+				Bonds::Add(npc, Bonds::Deed::kGift, value >= 200 ? 2 : 1);
+			}
 		}
 
 		std::string Count(const std::string& name, std::int32_t n)
 		{
 			return n > 1 ? std::format("{} x{}", name, n) : name;
 		}
+
+		// What a handover to the NPC really was: things they lent coming back, coin paying for a
+		// lent thing that was lost, the player lending their own things, or else a gift.
+		struct Handover
+		{
+			std::string returned, paid, lent, gift, promised;
+			std::int32_t giftValue = 0;
+			RE::TESBoundObject* giftItem = nullptr;
+			bool promisedEarly = false;  // a promised thing came well before the time said
+
+			void Add(RE::Actor* npc, RE::TESBoundObject* item, std::int32_t n, bool lend)
+			{
+				const bool coin = item == Game::Gold();
+				auto join = [](std::string& list, const std::string& what) { list += (list.empty() ? "" : ", ") + what; };
+				if (SkyrimNet::ConfigBool("features.loans", true)) {
+					if (lend && !coin) {
+						Loans::LendTo(npc, item, n);
+						join(lent, Count(item->GetName(), n));
+						return;
+					}
+					if (coin) {
+						if (auto what = Loans::PayFor(npc, n); !what.empty()) {
+							join(paid, std::format("{} gold for the lost {}", n, what));
+							return;
+						}
+					} else if (const auto back = Loans::GiveBack(npc, item, n); back > 0) {
+						join(returned, Count(item->GetName(), back));
+						n -= back;
+					}
+				}
+				// What the player promised them: a promise kept, not a gift.
+				if (n > 0 && SkyrimNet::ConfigBool("features.player_promises", true)) {
+					if (coin && Pledges::Paid(npc, n)) {
+						join(promised, std::format("{} gold", n));
+						return;
+					}
+					if (!coin) {
+						bool early = false;
+						if (const auto done = Pledges::Delivered(npc, item, n, &early); done > 0) {
+							join(promised, Count(item->GetName(), done));
+							promisedEarly = promisedEarly || early;
+							n -= done;
+						}
+					}
+				}
+				if (n > 0) {
+					join(gift, coin ? std::format("{} gold", n) : Count(item->GetName(), n));
+					giftValue += coin ? n : item->GetGoldValue() * n;
+					giftItem = giftItem ? giftItem : item;
+				}
+			}
+
+			// Tells the NPC what happened, once; a gift part still gets its reaction and memory.
+			// `quiet`: the NPC already reacted in their own line (a gift offered in talk, then the popup's
+			// yes): remembered, not narrated, so they don't thank the player twice.
+			void Tell(RE::Actor* npc, const std::string& extra = "", bool quiet = false)
+			{
+				const std::string player = Game::Player()->GetName();
+				std::string text;
+				if (!returned.empty()) {
+					text += std::format("{} gave back the {} {} had lent them. ", player, returned, npc->GetName());
+				}
+				if (!paid.empty()) {
+					text += std::format("{} paid {} {}. ", player, npc->GetName(), paid);
+				}
+				if (!lent.empty()) {
+					text += std::format("{} lent {} their {}, to have back when they ask. ", player, npc->GetName(), lent);
+				}
+				if (!promised.empty()) {
+					text += promisedEarly ? std::format("{} handed {} the {} they had promised - well before they said they would. ", player, npc->GetName(), promised) :
+					                        std::format("{} handed {} the {}, just as they had promised. ", player, npc->GetName(), promised);
+				}
+				if (text.empty()) {
+					if (!gift.empty()) {
+						Received(npc, gift + extra, giftValue, quiet, giftItem);
+					}
+					return;
+				}
+				if (!gift.empty()) {
+					text += std::format("{} also gave {} {}.", player, npc->GetName(), gift + extra);
+				}
+				if (quiet) {
+					SkyrimNet::AddMemory(npc->GetFormID(), text, 0.4f);
+				} else {
+					Game::Narrate(text, npc);
+				}
+				if (!gift.empty()) {
+					Received(npc, gift + extra, giftValue, true, giftItem);
+				}
+			}
+		};
 
 		// Popup (or straight through when off / no PrismaUI), then `give()`; the player's chosen
 		// line is said, the NPC answers the handover itself.
@@ -730,7 +990,8 @@ namespace MundaneMatters::Promises
 			if (!npc) {
 				return;
 			}
-			if (!SkyrimNet::ConfigBool("features.confirm_gift", true) || !Confirm::Available()) {
+			// Its own switch, off by default: a gift offered in talk and accepted just goes.
+			if (!SkyrimNet::ConfigBool("features.confirm_gift", false) || !Confirm::Available()) {
 				give();
 				return;
 			}
@@ -740,11 +1001,15 @@ namespace MundaneMatters::Promises
 			offer.title = "Give";
 			offer.npc = npc->GetName();
 			offer.detail = detail;
+			// Coin: SeverActions may be taking it already (CollectPayment, a loan with its debt popup).
+			if (detail.find(" gold") != std::string::npos) {
+				offer.sameAs = { "payment", "debt" };
+			}
 			offer.showPrice = false;
 			offer.seconds = 0;  // gifts wait for the player
 			offer.acceptLabel = accept;
 			offer.declineLabel = decline;
-			const bool shown = Confirm::Ask(offer, [npcId, give, accept, decline](Confirm::Choice choice) {
+			const bool shown = Confirm::Ask(offer, [npcId, give, decline](Confirm::Choice choice) {
 				auto* npc = RE::TESForm::LookupByID<RE::Actor>(npcId);
 				if (!npc || choice == Confirm::Choice::kTimeout) {
 					return;  // unanswered: nothing moves, nothing said
@@ -753,7 +1018,7 @@ namespace MundaneMatters::Promises
 					Game::Say(decline, npc, true);
 					return;
 				}
-				Game::Say(accept, npc, false);  // their reaction to the handover answers it
+				// A silent yes: they already answered the offer in their own line; nothing more is said.
 				give();
 			});
 			if (!shown) {
@@ -837,10 +1102,14 @@ namespace MundaneMatters::Promises
 				if (n <= 0) {
 					return;
 				}
+				const bool owed = Loans::Owes(npc->GetFormID(), item);
 				player->RemoveItem(item, n, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, npc);
-				Game::Say(Game::Pick({ "Here, I want you to have this.", "This is for you.", "Please, take it." }), npc, false);
-				const auto what = item == Game::Gold() ? std::format("{} gold", n) : Count(item->GetName(), n);
-				Received(npc, what, item == Game::Gold() ? n : item->GetGoldValue() * n, false, item);
+				Game::Say(owed ? Game::Pick({ "Here's your things back.", "Thanks for the loan.", "Returning this, as promised." })
+				               : Game::Pick({ "Here, I want you to have this.", "This is for you.", "Please, take it." }),
+					npc, false);
+				Handover h;
+				h.Add(npc, item, n, false);
+				h.Tell(npc);
 			});
 			return shown;
 		}
@@ -872,19 +1141,13 @@ namespace MundaneMatters::Promises
 				logger::info("gift: menu closed, nothing given");
 				return;
 			}
-			std::string list;
-			std::int32_t value = 0;
-			RE::TESBoundObject* first = nullptr;
+			Handover h;
 			for (auto& [id, n] : given) {
-				auto* obj = RE::TESForm::LookupByID<RE::TESBoundObject>(id);
-				if (!obj) {
-					continue;
+				if (auto* obj = RE::TESForm::LookupByID<RE::TESBoundObject>(id)) {
+					h.Add(npc, obj, n, false);
 				}
-				first = first ? first : obj;
-				list += (list.empty() ? "" : ", ") + Count(obj->GetName(), n);
-				value += obj->GetGoldValue() * n;
 			}
-			Received(npc, list, value, false, first);
+			h.Tell(npc);
 		}
 
 		class GiftMenuWatcher : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
@@ -976,7 +1239,52 @@ namespace MundaneMatters::Promises
 		if (g.gold <= 0 && words.empty() && unnamed != "true" && unnamed != "yes" && unnamed != "1") {
 			return std::nullopt;
 		}
+		const auto loan = JsonUtil::Lower(JsonUtil::Str(j, "loan"));
+		g.loan = g.gold <= 0 && (loan == "true" || loan == "yes" || loan == "1");  // coin lent is a debt: not this
 		return g;
+	}
+
+	namespace
+	{
+		std::unordered_map<RE::FormID, Clock::time_point> g_earlyGift;  // picker already opened from the player's line
+	}
+
+	bool UnnamedGiftWords(const std::string& line)
+	{
+		std::string p = " ";
+		for (auto& w : JsonUtil::Words(JsonUtil::Lower(line))) {
+			p += w + " ";
+		}
+		// "this" / "something" / "a gift" as the thing itself, right before "for you" (not "this mead for you").
+		for (auto* k : { " got this for you ", " got something for you ", " got you something ", " have something for you ",
+				 " brought you something ", " brought this for you ", " brought something for you ", " this is for you ", " here this for you ",
+				 " a gift for you ", " gift for you ", " a present for you ", " a little something for you ", " got a gift ", " have a gift ",
+				 " have a present " }) {
+			if (p.find(k) != std::string::npos) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool OfferUnnamedGift(RE::Actor* npc)
+	{
+		if (!npc || !SkyrimNet::ConfigBool("features.gift_menu", true) || !Confirm::Available()) {
+			return false;
+		}
+		// Their reply to "I got this for you" waits for the gift itself (SkyrimNet drops the one being written).
+		Papyrus::CallStatic("SkyrimNetApi", "PurgeDialogue", nullptr, false);
+		if (!OpenPicker(npc)) {
+			return false;
+		}
+		g_earlyGift[npc->GetFormID()] = Clock::now();
+		// Once more a moment later: the reply may only just have started when the line came in.
+		std::thread([] {
+			std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+			SKSE::GetTaskInterface()->AddTask([] { Papyrus::CallStatic("SkyrimNetApi", "PurgeDialogue", nullptr, false); });
+		}).detach();
+		logger::info("gift: \"something for you\" - the picker first, {}'s reply after", npc->GetName());
+		return true;
 	}
 
 	void Receive(RE::Actor* npc, const std::vector<Gift>& gifts)
@@ -993,6 +1301,7 @@ namespace MundaneMatters::Promises
 			RE::TESBoundObject* item = nullptr;
 			std::int32_t qty = 0;
 			std::string label;
+			bool lend = false;  // the player lends it, not gives it
 		};
 		std::vector<Part> parts;
 		std::vector<std::string> missing;
@@ -1000,13 +1309,14 @@ namespace MundaneMatters::Promises
 		std::int32_t coinPlanned = 0;
 		for (auto& g : gifts) {
 			if (g.gold > 0) {
+				// Checked first: the purse may be empty because another mod just paid it over.
+				if (AlreadyReceived(npc, [gold](RE::TESForm* f) { return f == gold; })) {
+					logger::info("gift: {} already got the coin (another mod)", npc->GetName());
+					continue;
+				}
 				const auto purse = Game::ItemCount(player, gold) - coinPlanned;
 				if (purse <= 0) {
 					missing.push_back("coin");
-					continue;
-				}
-				if (AlreadyReceived(npc, [gold](RE::TESForm* f) { return f == gold; })) {
-					logger::info("gift: {} already got the coin (another mod)", npc->GetName());
 					continue;
 				}
 				const auto amount = std::clamp(g.gold, 1, purse);
@@ -1032,6 +1342,23 @@ namespace MundaneMatters::Promises
 				m = BestIn(player, wanted, true);
 			}
 			if (!m.obj) {
+				// None left because another mod (SeverActions acting on their line) just handed it over:
+				// a gift all the same, and no "didn't have any".
+				const bool meal = IsGenericMeal(wanted);
+				RE::TESBoundObject* got = nullptr;
+				if (AlreadyReceived(npc, [&](RE::TESForm* f) {
+						if (f && (meal ? IsFood(f) : Score(wanted, f->GetName()) > 0.0)) {
+							got = f->As<RE::TESBoundObject>();
+							return true;
+						}
+						return false;
+					})) {
+					logger::info("gift: {} already got {} (another mod moved it)", npc->GetName(), got ? got->GetName() : g.item);
+					if (got) {
+						Received(npc, got->GetName(), got->GetGoldValue(), true, got);
+					}
+					continue;
+				}
 				missing.push_back(g.item);
 				continue;
 			}
@@ -1042,8 +1369,11 @@ namespace MundaneMatters::Promises
 			}
 			const auto have = Game::ItemCount(player, item);
 			const auto qty = std::clamp(g.qty, 1, (std::max)(1, have));
+			const bool lend = g.loan && SkyrimNet::ConfigBool("features.loans", true);
 			parts.push_back({ item, qty,
-				std::format("{}{}{}", Count(item->GetName(), qty), qty < g.qty ? " (all you have)" : "", m.worn ? " (equipped)" : "") });
+				std::format("{}{}{}{}", Count(item->GetName(), qty), qty < g.qty ? " (all you have)" : "", m.worn ? " (equipped)" : "",
+					lend ? " (lent, you get it back)" : Loans::Owes(npc->GetFormID(), item) ? " (giving it back)" : ""),
+				lend });
 		}
 
 		std::string missingText;
@@ -1055,6 +1385,10 @@ namespace MundaneMatters::Promises
 				logger::info("gift: player has none of: {}", missingText);
 				Game::Narrate(std::format("{} reached into their pack for {} to give {}, but didn't have any.", player->GetName(), missingText, npc->GetName()), npc);
 			} else if (unnamed) {
+				// Picked already (the picker opened on the player's own words): not a second time.
+				if (auto it = g_earlyGift.find(npc->GetFormID()); it != g_earlyGift.end() && Clock::now() - it->second < 3min) {
+					return;
+				}
 				// The player picks: MundaneMatters' picker, or the vanilla gift menu without PrismaUI.
 				if (!SkyrimNet::ConfigBool("features.gift_menu", true) || !OpenPicker(npc)) {
 					OpenGiftMenu(npc);
@@ -1075,9 +1409,8 @@ namespace MundaneMatters::Promises
 			if (!npc) {
 				return;
 			}
-			std::string given;
-			std::int32_t value = 0;
-			RE::TESBoundObject* first = nullptr;
+			Handover h;
+			bool any = false;
 			for (auto& p : parts) {
 				// Taken by another mod while the popup was open, or dropped / sold meanwhile.
 				auto* item = p.item;
@@ -1089,19 +1422,141 @@ namespace MundaneMatters::Promises
 					continue;
 				}
 				player->RemoveItem(item, n, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, npc);
-				first = first ? first : item;
-				given += (given.empty() ? "" : ", ") + (item == Game::Gold() ? std::format("{} gold", n) : Count(item->GetName(), n));
-				value += item == Game::Gold() ? n : item->GetGoldValue() * n;
+				h.Add(npc, item, n, p.lend);
+				any = true;
 			}
-			if (given.empty()) {
+			if (!any) {
 				Game::Narrate(std::format("{} went to hand it over, but no longer had it.", player->GetName()), npc);
 				return;
 			}
-			if (!missingText.empty()) {
-				given += std::format(" (they had no {} to give)", missingText);
-			}
-			Received(npc, given, value, false, first);
+			h.Tell(npc, missingText.empty() ? "" : std::format(" (they had no {} to give)", missingText), true);
 		});
+	}
+
+	bool Said(const Promise& p, const std::string& playerLine, const std::string& npcLine)
+	{
+		if (p.when == "cancel") {
+			return true;
+		}
+		const auto npc = JsonUtil::Lower(npcLine);
+		const auto both = JsonUtil::Lower(playerLine) + " " + npc;
+		auto any = [](const std::string& text, std::initializer_list<const char*> words) {
+			return std::ranges::any_of(words, [&](const char* w) { return text.find(w) != std::string::npos; });
+		};
+		if (p.type == "offer_bed" && p.real >= 0) {
+			// The classifier read both lines and judged it (a yes to "can I stay?", "stay as long as you
+			// need"): trusted, as long as staying is what was talked about at all - a guard against an offer
+			// made up out of nothing.
+			const bool aboutStaying = any(both, { "stay", "sleep", "bed", "roof", "home", "house", "place", "floor", "hearth", "fire", "room", "night",
+				"crash", "welcome", "lodg", "rest" });
+			return p.real == 1 && aboutStaying;
+		}
+		if (p.type == "offer_bed") {
+			// No verdict from the classifier: the words themselves. A plain offer of a bed or a place to sleep
+			// - theirs, here - or a yes to the player asking for one. "If you ever need a place to stay, I'm
+			// around" is kindness, not a bed.
+			// "Stay here" / "stay with me" are a bed only with the night in them: "stay here while I fetch
+			// it", "stay with me a moment" aren't.
+			const bool night = any(npc, { "night", "sleep", "bed", "rest", "tonight", "morning", "crash" });
+			const bool offered = any(npc, { "take my bed", "use my bed", "the bed is yours", "bed is yours", "bed's yours", "spare bed", "my spare",
+				"you can sleep", "you can crash", "you can rest here", "sleep here", "crash here", "stay the night",
+				"sleep at my", "sleep in my", "my home is your home", "always welcome", "welcome to stay",
+				"make yourself at home", "bed upstairs", "bed in the back", "bed's made", "room for you here",
+				// a place on the floor is a place to sleep too ("a spare corner by the fire if you need to rest your head")
+				"rest your head", "lay your head", "spare corner", "corner by the fire", "corner by the hearth", "put you up", "roof over your head",
+				"spare bedroll", "floor's yours", "floor is yours", "spare furs" }) ||
+				(night && any(npc, { "you can stay", "stay here", "stay with me", "stay at my", "stay in my" }));
+			const bool asked = any(JsonUtil::Lower(playerLine), { "can i stay", "could i stay", "can i sleep", "could i sleep", "can i crash", "could i crash",
+				"can i rest here", "a bed for the night", "place to sleep", "spend the night", "share your bed", "sharing your bed", "sleep with you",
+				"sleep there", "stay with you", "stay at your", "sleep at your", "sleep in your" }) &&
+				[&] {
+					// Whole words: "yes" isn't in "eyes", nor "aye" in "prayer".
+					std::string padded = " ";
+					for (auto& w : JsonUtil::Words(npc)) {
+						padded += w + " ";
+					}
+					// An invitation in their own words is a yes too ("come to the bunkhouse", "follow me").
+					return std::ranges::any_of(std::initializer_list<const char*>{ "yes", "sure", "of course", "go ahead", "aye", "certainly", "be my guest",
+												  "no problem", "please do", "why not", "come to", "come with me", "follow me", "very well", "alright",
+												  "all right", "fine" },
+						[&](const char* w) { return padded.find(std::string(" ") + w + " ") != std::string::npos; });
+				}();
+			const bool conditional = any(npc, { "if you ever need", "if you need a place", "if you're ever", "should you ever need" }) && !offered;
+			return (offered || asked) && !conditional;
+		}
+		if (p.type == "give_key") {
+			return both.find("key") != std::string::npos;
+		}
+		// A meeting only when it's settled: the NPC firmly commits (the classifier's verdict), a specific time
+		// is named ("dawn", "tonight", "tomorrow at noon" - not "some day", "later"), and their line doesn't hedge.
+		if (p.type == "meet") {
+			if (p.confirmed == 0) {
+				return false;
+			}
+			std::string padded = " ";
+			for (auto& w : JsonUtil::Words(npc)) {
+				padded += w + " ";
+			}
+			for (auto* h : { " maybe ", " perhaps ", " might ", " someday ", " sometime ", " some time ", " if you ", " we ll see ", " possibly ",
+					 " not sure ", " can t promise ", " cant promise " }) {
+				if (padded.find(h) != std::string::npos) {
+					return false;
+				}
+			}
+			// Where they usually are, not a meeting: "you know where to find me", "most evenings at the Mare",
+			// "I'm at my stall every day", "I'll be around".
+			for (auto* h : { " usually ", " most days ", " most evenings ", " most nights ", " most mornings ", " always ", " every ", " often ",
+					 " whenever ", " anytime ", " any time ", " where to find me ", " if you need ", " when you need ", " be around ", " around here ",
+					 " most of the time " }) {
+				if (padded.find(h) != std::string::npos) {
+					return false;
+				}
+			}
+			// Arranged with the player, not just their own plans ("I'll be at my stall tomorrow"): a cue that
+			// it's a meeting, in either line.
+			std::string bothPadded = " ";
+			for (auto& w : JsonUtil::Words(both)) {
+				bothPadded += w + " ";
+			}
+			const bool arranged = std::ranges::any_of(std::initializer_list<const char*>{ " meet ", " meeting ", " find me ", " see you there ",
+												  " see you at ", " be there ", " be late ", " keep me waiting ", " wait for you ", " waiting for you ",
+												  " join me ", " come to ", " come find ", " don t be late ", " i ll be waiting ", " ill be waiting " },
+				[&](const char* k) { return bothPadded.find(k) != std::string::npos; });
+			if (!arranged) {
+				return false;
+			}
+			const auto when = JsonUtil::Lower(p.timeHint) + " " + both;
+			return any(when, { "dawn", "dusk", "sunrise", "sunset", "first light", "morning", "noon", "midday", "afternoon", "evening", "tonight",
+				"midnight", "tomorrow", "today", "hour", "o'clock", "oclock" });
+		}
+		if (p.type == "give_gold") {
+			return any(both, { "gold", "coin", "septim", "drake", "money", "purse", "pay" }) || std::ranges::any_of(npc, [](char c) { return std::isdigit(static_cast<unsigned char>(c)); });
+		}
+		if (p.type == "give_item" || p.type == "allow_take") {
+			// The thing itself, named by either side (or plainly handed over: "here, take this").
+			// The item's head word ("sword" of "old iron sword") anywhere in what was said.
+			if (p.item.empty()) {
+				return true;
+			}
+			const auto itemWords = Tokens(p.item, true);
+			if (itemWords.empty()) {
+				return true;
+			}
+			const auto saidWords = Tokens(both, false);
+			std::string joined;
+			for (auto& w : saidWords) {
+				joined += w;
+			}
+			const auto& head = itemWords.back();
+			std::string itemJoined;  // "Sweet Roll" said as "sweetroll"
+			for (auto& w : itemWords) {
+				itemJoined += w;
+			}
+			const bool named = std::ranges::find(saidWords, head) != saidWords.end() || (head.size() >= 5 && joined.find(head) != std::string::npos) ||
+			                   (itemJoined.size() >= 5 && joined.find(itemJoined) != std::string::npos);
+			return named || any(npc, { "take this", "here, take", "here you go", "have this", "it's yours", "take it", "this is for you" });
+		}
+		return true;
 	}
 
 	std::optional<Promise> FromJson(const json& j)
@@ -1112,7 +1567,11 @@ namespace MundaneMatters::Promises
 		Promise p;
 		// Models drift from the given type names: "give_money", "gift", "lodging", ...
 		const auto type = JsonUtil::Lower(JsonUtil::Str(j, "type"));
-		if (type.find("gold") != std::string::npos || type.find("money") != std::string::npos || type.find("coin") != std::string::npos ||
+		if (type.find("meet") != std::string::npos || type.find("rendezvous") != std::string::npos || type.find("appoint") != std::string::npos) {
+			p.type = "meet";
+		} else if (type.find("key") != std::string::npos) {
+			p.type = "give_key";
+		} else if (type.find("gold") != std::string::npos || type.find("money") != std::string::npos || type.find("coin") != std::string::npos ||
 			type.find("pay") != std::string::npos) {
 			p.type = "give_gold";
 		} else if (type.find("bed") != std::string::npos || type.find("sleep") != std::string::npos || type.find("lodg") != std::string::npos ||
@@ -1133,6 +1592,18 @@ namespace MundaneMatters::Promises
 		p.inHours = static_cast<float>(std::clamp(JsonUtil::Num(j, "in_hours").value_or(0.0), 0.0, 24.0 * 30));
 		const auto always = JsonUtil::Lower(JsonUtil::Str(j, "always"));
 		p.always = always == "true" || always == "yes" || always == "1";
+		const auto loan = JsonUtil::Lower(JsonUtil::Str(j, "loan"));
+		p.loan = (p.type == "give_item" || p.type == "allow_take") && (loan == "true" || loan == "yes" || loan == "1");
+		p.backInHours = static_cast<float>(std::clamp(JsonUtil::Num(j, "back_in_hours").value_or(0.0), 0.0, 24.0 * 30));
+		if (p.type == "meet") {
+			const auto c = JsonUtil::Lower(JsonUtil::Str(j, "confirmed"));
+			p.confirmed = c == "true" || c == "yes" || c == "1" ? 1 : c == "false" || c == "no" || c == "0" ? 0 : -1;
+			p.saidPlace = JsonUtil::Str(j, "said_place");
+		}
+		if (p.type == "offer_bed" && j.contains("real")) {
+			const auto real = JsonUtil::Lower(JsonUtil::Str(j, "real"));
+			p.real = real == "true" || real == "yes" || real == "1" ? 1 : real == "false" || real == "no" || real == "0" ? 0 : -1;
+		}
 
 		// "when" should be now/later/cancel; "tomorrow", "at dawn", "soon" all mean later.
 		const auto when = JsonUtil::Lower(JsonUtil::Str(j, "when", "now"));
@@ -1171,7 +1642,18 @@ namespace MundaneMatters::Promises
 				p.item.clear();
 			} else if (words.empty()) {
 				return std::nullopt;  // "here, take this": nothing nameable to hand over
+			} else if (const auto all = Tokens(p.item, false);  // "spare" is a filler word for item matching
+					   std::ranges::find(all, "key") != all.end() &&
+					   std::ranges::any_of(all, [](const std::string& w) {
+						   static const std::unordered_set<std::string> kHome{ "house", "home", "place", "door", "hut", "shack", "cabin", "spare", "front" };
+						   return kHome.contains(w);
+					   })) {
+				p.type = "give_key";  // "a spare key", "the key to my house" written as an item
 			}
+		}
+		if (p.type == "give_key") {
+			p.item.clear();
+			p.qty = 1;
 		}
 		return p;
 	}
@@ -1179,7 +1661,7 @@ namespace MundaneMatters::Promises
 	json ToJson(const Promise& p)
 	{
 		return { { "type", p.type }, { "item", p.item }, { "qty", p.qty }, { "gold", p.gold }, { "when", p.when }, { "time_hint", p.timeHint },
-			{ "in_hours", p.inHours }, { "always", p.always } };
+			{ "in_hours", p.inHours }, { "always", p.always }, { "loan", p.loan }, { "back_in_hours", p.backInHours } };
 	}
 
 	std::string Describe(const Promise& p)
@@ -1192,6 +1674,12 @@ namespace MundaneMatters::Promises
 		}
 		if (p.type == "allow_take") {
 			return std::format("permission to take {}", p.item);
+		}
+		if (p.type == "give_key") {
+			return "a key to their home";
+		}
+		if (p.type == "meet") {
+			return std::format("to meet {}{}", p.item.empty() ? "again" : "at " + p.item, p.timeHint.empty() ? "" : ", " + p.timeHint);
 		}
 		return p.qty > 1 ? std::format("{} {}", p.qty, p.item) : p.item;
 	}
@@ -1213,7 +1701,7 @@ namespace MundaneMatters::Promises
 		if (!npc) {
 			return {};
 		}
-		if (npc->IsPlayerTeammate()) {
+		if (Services::IsCompanion(npc)) {
 			return { 6.0f, 80 };  // companions share like allies
 		}
 		auto* base = npc->GetActorBase();
@@ -1241,12 +1729,106 @@ namespace MundaneMatters::Promises
 		std::vector<RE::TESObjectREFR*> TakeTargets(RE::Actor* npc, const Promise& p);  // defined below
 	}
 
+	std::vector<Found> FindItems(RE::TESObjectREFR* container, const std::string& text)
+	{
+		std::vector<Found> out;
+		const auto wanted = Tokens(text, true);
+		if (!container || wanted.empty()) {
+			return out;
+		}
+		for (auto& [obj, entry] : container->GetInventory()) {
+			if (!obj || entry.first <= 0 || (entry.second && entry.second->IsQuestObject())) {
+				continue;
+			}
+			if (const double s = Score(wanted, obj->GetName()); s > 0.0) {
+				out.push_back({ obj, entry.first, entry.second && entry.second->IsWorn(), s });
+			}
+		}
+		std::ranges::sort(out, [](const Found& a, const Found& b) { return a.score > b.score; });
+		return out;
+	}
+
+	bool KindFits(const std::string& said, RE::TESBoundObject* item)
+	{
+		if (!item || !item->GetName()) {
+			return false;
+		}
+		std::string name = item->GetName();
+		std::ranges::transform(name, name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		std::string want = " ";
+		for (auto& w : JsonUtil::Words(JsonUtil::Lower(said))) {
+			want += w + " ";
+		}
+		auto says = [&](std::initializer_list<const char*> ws) { return std::ranges::any_of(ws, [&](const char* w) { return want.find(std::string(" ") + w + " ") != std::string::npos; }); };
+		auto named = [&](std::initializer_list<const char*> ws) { return std::ranges::any_of(ws, [&](const char* w) { return name.find(w) != std::string::npos; }); };
+		auto* alch = item->As<RE::AlchemyItem>();
+		const bool food = alch && alch->IsFood();
+		const bool edible = food || item->Is(RE::FormType::Ingredient);
+		static const std::initializer_list<const char*> kMeat{ "venison", "beef", "horker", "mammoth", "goat", "pheasant", "chicken", "rabbit", "boar", "steak",
+			"meat", "haunch", "horse", "dog", "mudcrab", "ribs", "sausage", "jerky", "mutton", "pork", "lamb", "deer", "elk", "bear", "skeever", "leg of", "hare" };
+		static const std::initializer_list<const char*> kFish{ "salmon", "fish", "trout", "carp", "perch", "char", "pike", "cod", "herring", "clam", "slaughterfish" };
+		static const std::initializer_list<const char*> kDrink{ "mead", "ale", "wine", "beer", "brandy", "rum", "mazte", "sujamma", "flin", "shein", "cider", "stout", "whiskey" };
+		if (says({ "meat", "meats", "game", "venison" })) {
+			return edible && named(kMeat);
+		}
+		if (says({ "fish", "fishes" })) {
+			return edible && named(kFish);
+		}
+		if (says({ "food", "something to eat", "meal", "supper", "dinner", "breakfast", "lunch", "grub", "provisions", "rations", "a bite" })) {
+			return food;
+		}
+		if (says({ "drink", "drinks", "booze", "alcohol", "liquor", "spirits", "a bottle" })) {
+			return food && named(kDrink);
+		}
+		if (says({ "potion", "potions", "healing", "remedy", "tonic", "medicine", "cure" })) {
+			return alch && !food;
+		}
+		if (says({ "pelt", "pelts", "hide", "hides", "fur", "furs", "leather", "skin", "skins" })) {
+			return named({ "pelt", "hide", "fur", "leather", "skin" });
+		}
+		if (says({ "herb", "herbs", "flower", "flowers", "ingredient", "ingredients", "mushroom", "mushrooms" })) {
+			return item->Is(RE::FormType::Ingredient);
+		}
+		if (says({ "ore", "ingot", "ingots", "metal" })) {
+			return named({ "ore", "ingot" });
+		}
+		if (says({ "wood", "firewood", "logs" })) {
+			return named({ "firewood", "wood" });
+		}
+		return false;
+	}
+
+	double NameScore(const std::string& text, const char* name)
+	{
+		return Score(Tokens(text, true), name);
+	}
+
+	std::string Counted(const std::string& name, std::int32_t n)
+	{
+		return Count(name, n);
+	}
+
+	bool IsHome(RE::TESObjectCELL* cell, RE::Actor* npc)
+	{
+		return npc && IsHomeOf(cell, npc);
+	}
+
+	bool Belongs(RE::TESForm* owner, RE::Actor* npc)
+	{
+		return npc && OwnedBy(owner, npc);
+	}
+
+	bool IsTheirs(RE::TESForm* owner, RE::Actor* npc)
+	{
+		return npc && IsHer(owner, npc);
+	}
+
 	bool IsClose(RE::Actor* npc)
 	{
 		if (!npc) {
 			return false;
 		}
-		if (npc->IsPlayerTeammate()) {
+		if (Services::IsCompanion(npc)) {
 			return true;
 		}
 		auto* base = npc->GetActorBase();
@@ -1274,6 +1856,27 @@ namespace MundaneMatters::Promises
 		Game::Notify(std::format("{} shares {} with you.", npc->GetName(), name));
 		Remember(npc, std::format("{} shared a meal of {} with {}.", npc->GetName(), name, player->GetName()));
 		return name;
+	}
+
+	bool IsLoan(RE::Actor* npc, const Promise& p)
+	{
+		if (!npc || !p.loan || !SkyrimNet::ConfigBool("features.loans", true)) {
+			return false;
+		}
+		const auto wanted = WantedOf(p);
+		if (wanted.empty()) {
+			return false;
+		}
+		const auto maxValue = static_cast<std::int32_t>(SkyrimNet::ConfigFloat("tuning.max_promise_item_value", 100.0f));
+		RE::TESBoundObject* item = p.type == "give_item" ? ChooseItem(npc, wanted, maxValue).item : nullptr;
+		if (!item) {
+			item = Loans::TradeTool(npc, p.item);
+		}
+		bool consumable = false;
+		if (item) {
+			Loans::Lendable(item, consumable);
+		}
+		return !consumable;  // nothing found, or too valuable: it never reaches the budget anyway
 	}
 
 	std::int32_t HandoutCost(RE::Actor* npc, const Promise& p)
@@ -1339,10 +1942,11 @@ namespace MundaneMatters::Promises
 			std::vector<RE::TESObjectREFR*> out;
 			auto* player = Game::Player();
 			auto* cell = player->GetParentCell();
-			if (!cell || !cell->IsInteriorCell() || !IsHomeOf(cell, npc)) {
+			// Their home; a loan also in their workplace (the pick by the forge), since it comes back.
+			if (!cell || !cell->IsInteriorCell() || (!IsHomeOf(cell, npc) && !p.loan)) {
 				return out;
 			}
-			if (auto* loc = cell->GetLocation(); loc && (loc->HasKeywordString("LocTypeStore") || loc->HasKeywordString("LocTypeInn"))) {
+			if (auto* loc = cell->GetLocation(); !p.loan && loc && (loc->HasKeywordString("LocTypeStore") || loc->HasKeywordString("LocTypeInn"))) {
 				return out;
 			}
 			const auto wanted = WantedOf(p);
@@ -1399,16 +2003,48 @@ namespace MundaneMatters::Promises
 			if (!SkyrimNet::ConfigBool("features.allow_take", true)) {
 				return Outcome::kImpossible;
 			}
+			const bool loan = p.loan && SkyrimNet::ConfigBool("features.loans", true);
 			auto targets = TakeTargets(npc, p);
+			if (loan) {
+				// Lent things are cheap everyday things: never their good sword off the wall.
+				std::erase_if(targets, [](RE::TESObjectREFR* ref) {
+					bool consumable = false;
+					auto* base = ref->GetBaseObject();
+					return !Loans::Lendable(base, consumable) && !consumable;
+				});
+			}
 			if (targets.empty()) {
-				logger::info("allow_take '{}': nothing of {}'s like that here (homes only)", p.item, npc->GetName());
-				Game::DebugNotify(std::format("Mundane Matters: no '{}' of {}'s here to take", p.item, npc->GetName()));
+				logger::info("allow_take '{}': nothing of {}'s like that here", p.item, npc->GetName());
+				// What they said isn't there. A tool of their trade they fetch themselves; anything else,
+				// they're told it isn't there, so they can say so.
+				if (auto* tool = Loans::TradeTool(npc, p.item)) {
+					auto* player = Game::Player();
+					player->AddObjectToContainer(tool, nullptr, 1, npc);
+					if (loan) {
+						Loans::Borrow(npc, tool, 1, p.backInHours, true);
+					} else {
+						Game::Notify(std::format("{} gave you {}.", npc->GetName(), tool->GetName()));
+					}
+					Game::Narrate(std::format("{} couldn't find the {} where they thought it was, so they fetched one from their workshop and handed it to {}.",
+									  npc->GetName(), tool->GetName(), player->GetName()),
+						npc);
+					return Outcome::kKept;
+				}
+				Game::Narrate(std::format("{} looked for the {} {} meant, but there was none there to take.", Game::Player()->GetName(), p.item, npc->GetName()), npc);
 				return Outcome::kImpossible;
 			}
 			for (auto* ref : targets) {
-				Ledger::AllowTake(ref, 24.0f);
+				Ledger::AllowTake(ref, 24.0f, npc->GetFormID());
 			}
 			const std::string name = targets.front()->GetBaseObject()->GetName();
+			if (loan) {
+				bool consumable = false;
+				auto* base = targets.front()->GetBaseObject()->As<RE::TESBoundObject>();
+				if (base && (Loans::Lendable(base, consumable) || !consumable)) {
+					Loans::Borrow(npc, base, static_cast<std::int32_t>(targets.size()), p.backInHours, false);
+					return Outcome::kKept;
+				}
+			}
 			const auto what = targets.size() > 1 ? std::format("{} ({})", name, targets.size()) : name;
 			logger::info("allow_take '{}' -> {} may be taken from {}'s home", p.item, what, npc->GetName());
 			Game::Notify(std::format("You may take the {}.", what));
@@ -1440,6 +2076,19 @@ namespace MundaneMatters::Promises
 		return npc ? FindBed(npc) : nullptr;
 	}
 
+	std::vector<std::string> GivenRecently(RE::FormID npc, std::chrono::seconds within)
+	{
+		std::vector<std::string> out;
+		std::scoped_lock l(g_lock);
+		const auto cutoff = Clock::now() - within;
+		for (auto& k : g_kept) {
+			if (k.at >= cutoff && k.npc == npc && (k.promise.type == "give_item" || k.promise.type == "give_gold")) {
+				out.push_back(Describe(k.promise));
+			}
+		}
+		return out;
+	}
+
 	bool WasKept(RE::FormID npc, const Promise& p, std::chrono::seconds within)
 	{
 		std::scoped_lock l(g_lock);
@@ -1452,16 +2101,26 @@ namespace MundaneMatters::Promises
 		if (!npc || npc->IsDead()) {
 			return Outcome::kImpossible;
 		}
+		// Wronged and not forgiven: no gifts, beds, keys or permissions.
+		if (Trust::Refuse(npc, Describe(p))) {
+			return Outcome::kImpossible;
+		}
 		// "Enjoy the soup I gave you" a few lines later is not a second bowl.
 		{
 			std::scoped_lock l(g_lock);
 			const auto cutoff = Clock::now() - kKeptMemory;
 			std::erase_if(g_kept, [&](const Kept& k) { return k.at < cutoff; });
-			// Beds only: a second bowl or coin is a real ask that the generosity budget decides.
+			// A second bowl or coin is a real ask that the generosity budget decides, but not within a
+			// few minutes of the first: then it's the NPC talking about the one they just gave ("that pie
+			// keeps well", "I keep my word" after handing it over). Beds: any time.
 			const bool handout = p.type == "give_item" || p.type == "give_gold" || p.type == "allow_take";
+			const auto repeatCutoff = Clock::now() - kRepeatWindow;
 			for (auto& k : g_kept) {
-				if (!handout && k.npc == npc->GetFormID() && Same(k.promise, p)) {
+				if (k.npc == npc->GetFormID() && Same(k.promise, p) && (!handout || (k.at >= repeatCutoff && k.promise.gold == p.gold))) {
 					logger::info("{}: '{}' was already kept a moment ago", npc->GetName(), Describe(p));
+					if (handout) {
+						Game::Notify(std::format("{} already gave you {}.", npc->GetName(), Describe(k.promise)));
+					}
 					return Outcome::kKept;
 				}
 			}
@@ -1475,10 +2134,18 @@ namespace MundaneMatters::Promises
 			outcome = OfferBed(npc, p);
 		} else if (p.type == "allow_take") {
 			outcome = AllowTake(npc, p);
+		} else if (p.type == "give_key") {
+			outcome = SkyrimNet::ConfigBool("features.keys", true) && Keys::Give(npc) ? Outcome::kKept : Outcome::kImpossible;
 		}
 		if (outcome == Outcome::kKept) {
-			std::scoped_lock l(g_lock);
-			g_kept.push_back({ npc->GetFormID(), p, Clock::now() });
+			{
+				std::scoped_lock l(g_lock);
+				g_kept.push_back({ npc->GetFormID(), p, Clock::now() });
+			}
+			// A bed offered is hospitality: its bond is the night the player really sleeps there (kStay).
+			if (p.type != "offer_bed") {
+				Bonds::Add(npc, Bonds::Deed::kPromise, 1);
+			}
 		}
 		return outcome;
 	}

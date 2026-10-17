@@ -1,5 +1,7 @@
 #include "SkyrimNetBridge.h"
 
+#include "JsonUtil.h"
+
 #include <skyrimnet/PublicAPI.h>
 
 namespace MundaneMatters::SkyrimNet
@@ -119,6 +121,34 @@ namespace MundaneMatters::SkyrimNet
 
 	bool ConfigBool(const char* path, bool fallback)
 	{
+		// The settings page has a dozen group switches; every feature asks for its own, and its
+		// group answers. "" = no switch any more (always on).
+		static const std::unordered_map<std::string_view, std::string_view> kGroupOf{
+			{ "features.trade", "groups.shops" }, { "features.trade_talk", "groups.shops" }, { "features.rent_room", "groups.shops" },
+			{ "features.training", "groups.shops" },
+			{ "features.guards", "groups.guards" },
+			{ "features.follow", "groups.travel" }, { "features.escort", "groups.travel" }, { "features.escort_local_only", "" },
+			{ "features.gifts", "groups.gifts" }, { "features.gift_menu", "groups.gifts" }, { "features.gift_disposition", "groups.gifts" },
+			{ "features.allow_take", "groups.gifts" },
+			{ "features.promises", "groups.their_promises" },
+			{ "features.player_promises", "groups.your_promises" }, { "features.npc_errands", "groups.your_promises" },
+			{ "features.loans", "groups.loans" },
+			{ "features.share_meal", "groups.moments" }, { "features.drink", "groups.moments" }, { "features.sit", "groups.moments" }, { "features.company", "groups.moments" }, { "features.move_in", "groups.moments" },
+			{ "features.sit_bonus", "groups.moments" }, { "features.gestures", "groups.moments" }, { "features.perform", "groups.moments" }, { "features.rest", "groups.moments" },
+			{ "features.rest_bedrolls", "groups.moments" }, { "features.npc_gifts", "groups.moments" },
+			{ "features.care", "groups.care" },
+			{ "features.hold", "groups.hold_keys" }, { "features.keys", "groups.hold_keys" },
+			{ "features.trust", "groups.trust_bonds" }, { "features.bonds", "groups.trust_bonds" },
+			{ "features.brawls", "groups.trust_bonds" },
+			{ "features.confirm", "groups.confirm" }, { "features.confirm_move", "groups.confirm" }, { "features.confirm_hold", "groups.confirm" },
+			{ "features.confirm_care", "groups.confirm" },
+		};
+		if (auto it = kGroupOf.find(path); it != kGroupOf.end()) {
+			if (it->second.empty()) {
+				return true;
+			}
+			path = it->second.data();
+		}
 		auto v = ConfigValue(path);
 		if (!v) {
 			return fallback;

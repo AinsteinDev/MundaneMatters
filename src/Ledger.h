@@ -9,13 +9,28 @@ namespace MundaneMatters::Ledger
 	// Registers co-save callbacks and the game-thread ticker. Call from SKSEPluginLoad.
 	void Install();
 
+	// A save is being written (from the game's save message until our co-save part is done, plus a
+	// moment): menus Mundane Matters opens wait for it.
+	void SaveStarted();
+	bool Saving();
+
 	// Game thread. Hands the bed to the player for `hours` game hours. A guest loan instead lasts
 	// while the player is in that home and goes back to the host when they leave.
 	void LoanBed(RE::Actor* npc, RE::TESObjectREFR* bed, float hours, bool guest = false);
 
 	// "Go ahead, take the wine": that one object in their home is the player's for `hours`, so
 	// picking it up isn't theft; if left where it is, it becomes theirs again. Game thread.
-	void AllowTake(RE::TESObjectREFR* ref, float hours);
+	void AllowTake(RE::TESObjectREFR* ref, float hours, RE::FormID npc = 0);
+
+	// True when this NPC has let the player take something that is still lying there.
+	bool HasPermissions(RE::FormID npc);
+
+	// Everyone who has given the player something lasting (guest rights, a bed, a permission).
+	std::vector<RE::FormID> Hosts();
+
+	// Trust broken: guest rights, lent beds, permissions and pending gifts from this NPC end.
+	// Returns what was taken back ("guest rights", "the bed"...). Any thread.
+	std::vector<std::string> RevokeAll(RE::FormID npc);
 
 	// "You're always welcome here": the player may sleep in this NPC's home whenever they visit
 	// (a bed of theirs becomes the player's for each visit). Any thread.
@@ -23,6 +38,47 @@ namespace MundaneMatters::Ledger
 	void RemoveGuest(RE::FormID npc);
 	bool IsGuest(RE::FormID npc);
 	bool HasBedLoan(RE::FormID npc);
+
+	// Game thread. Who sleeps where at this host's home, as agreed in talk: "player_floor" (a bedroll
+	// for the player; the host keeps the bed), "npc_floor" (the host's bed for the player, a bedroll for
+	// the host) or "share". Laid out when the bed is lent (or now, if it already is).
+	void AgreeSleeping(RE::FormID npc, const std::string& how);
+
+	// Game thread. How the player sleeps at this host's home, while in it ("player_floor", "npc_floor",
+	// "share", "packed" for a bedroll they rolled up; "bed" for a plain bed loan), or "" when not.
+	std::string StayAt(RE::FormID npc);
+
+	// Any thread. NPCs' promises to the player for the promises book: who, what, and game hours left
+	// (a negative value = no set time).
+	struct Owed
+	{
+		std::string who, what;
+		float hoursLeft = -1.0f;
+		bool stay = false;  // a place to sleep / always welcome: not a promise, the book's own page
+		std::string note;   // stay: how they sleep there ("a bedroll by the hearth")
+	};
+	std::vector<Owed> TheirPromises();
+
+	// "I'll move the bedroll here", "can you put the bedroll here": a bedroll word and a moving word
+	// (typos too: "bedrool", "bed roll").
+	bool BedrollHereWords(const std::string& line);
+
+	// Game thread. The player's guest bedroll at a host's (in this cell) moves to where the player
+	// stands (or, not laid yet, is laid there now). False when there's none here.
+	bool MoveGuestBedroll();
+
+	// "Pick up my bedroll", "pack the bedroll", "roll up my bedroll": a bedroll word and a packing word.
+	bool BedrollPickUpWords(const std::string& line);
+
+	// Game thread. The player's guest bedroll here is packed away and stays packed (not laid again by
+	// itself) until they say where to put it. False when there's none here.
+	bool PickUpGuestBedroll();
+
+	// Game thread, once the game is ready. Applies Data/SKSE/Plugins/MundaneMatters_grants.json: things
+	// an NPC really agreed to in a conversation the mod missed, each entry once per save (by "id").
+	// [{"id": "...", "npc": "Plugin.esp|0xLOCALID" or "0xFORMID", "type": "offer_bed" | "guest",
+	//   "hours": 48, "sleep": "player_floor" | "npc_floor" | "share", "note": "..."}]
+	void ApplyGrants();
 
 	// Any thread. Queues a promise to keep later ("tomorrow", "when you come back"), or one that
 	// could not be kept yet (a bed offered while not in the NPC's home).

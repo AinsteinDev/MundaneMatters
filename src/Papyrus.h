@@ -41,7 +41,7 @@ namespace MundaneMatters::Papyrus
 			return false;
 		}
 		auto cb = detail::MakeCallback(std::move(onResult));
-		return vm->DispatchStaticCall(scriptName, fnName, RE::MakeFunctionArguments(std::forward<Args>(args)...), cb);
+		return vm->DispatchStaticCall(scriptName, fnName, RE::MakeFunctionArguments(std::decay_t<Args>(std::forward<Args>(args))...), cb);
 	}
 
 	// Calls a member function of a script bound to the form (e.g. "Actor"/"ShowBarterMenu" on an NPC).
@@ -58,7 +58,7 @@ namespace MundaneMatters::Papyrus
 			return false;
 		}
 		auto cb = detail::MakeCallback(std::move(onResult));
-		return vm->DispatchMethodCall(handle, scriptName, fnName, RE::MakeFunctionArguments(std::forward<Args>(args)...), cb);
+		return vm->DispatchMethodCall(handle, scriptName, fnName, RE::MakeFunctionArguments(std::decay_t<Args>(std::forward<Args>(args))...), cb);
 	}
 
 	// The script instance attached to the form (e.g. "RentRoomScript" on innkeepers), or null.

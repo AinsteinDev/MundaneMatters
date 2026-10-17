@@ -1,7 +1,7 @@
 plugin:
   name: MundaneMatters
   version: "0.2.0"
-  description: "Everyday life for SkyrimNet NPCs: trade, rooms, meals, gifts, guests and promises they actually keep"
+  description: "Roleplay: NPCs do what they say - trade, rooms, gifts, stays, meals, meetings and promises, from natural speech"
   icon: "\U0001F91D"
 
 variants:
@@ -11,110 +11,149 @@ variants:
 schema:
   fields:
     # ── Features ──
-    - name: "Trade"
-      path: "features.trade"
+    - name: "Shops & Services"
+      path: "groups.shops"
       type: "bool"
-      description: "Open the barter menu when the player asks a merchant to trade, in any wording."
+      description: "Trade by talking: 'show me your wares' opens the barter menu; 'how much for an apple?' gets the real price; 'I'll take 3' / 'want these pelts?' buys and sells with haggling (real stock, real prices). Inn rooms ('I need a room') and training ('teach me')."
       defaultValue: true
       category: "Features"
 
-    - name: "Inn Rooms"
-      path: "features.rent_room"
+    - name: "Guards: Talk Your Way Out"
+      path: "groups.guards"
       type: "bool"
-      description: "Rent the inn room (vanilla price, bed yours for the night) when the player asks an innkeeper for a room and they agree."
+      description: "With a bounty: pay the fine, bribe, persuade or intimidate a guard in plain words. Your Speech (and level, for threats) decides, never the chat; violent crimes can't be talked away."
       defaultValue: true
       category: "Features"
 
-    - name: "Training"
-      path: "features.training"
+    - name: "Follow & Escort"
+      path: "groups.travel"
       type: "bool"
-      description: "Open the training menu when the player asks a trainer to teach them."
-      defaultValue: true
-      category: "Features"
-
-    - name: "Follow"
-      path: "features.follow"
-      type: "bool"
-      description: "When the player asks someone to come along (in any wording) and they agree, they follow (SeverActions casual follow)."
-      defaultValue: true
-      category: "Features"
-
-    - name: "Escort"
-      path: "features.escort"
-      type: "bool"
-      description: "When the player asks someone to take them somewhere and they agree, they walk there ahead of the player and wait (SeverActions travel)."
-      defaultValue: true
-      category: "Features"
-
-    - name: "Local Escorts Only"
-      path: "features.escort_local_only"
-      type: "bool"
-      description: "People only lead you around their own hold. A trip to another hold (Riften to Whiterun) needs a companion, someone already going there, or someone going home."
-      defaultValue: true
-      category: "Features"
-
-    - name: "Confirm Follow & Escort"
-      path: "features.confirm_move"
-      type: "bool"
-      description: "Show an Accept/Decline popup before someone starts following you or leading you somewhere, so a misread line never sends them off. (Escort skips it when SeverActions' own travel popup will ask.)"
+      description: "'Follow me' and they come along; 'take me to the inn' and they lead the way (SeverActions). Long trips to another hold need a companion or someone going there anyway."
       defaultValue: true
       category: "Features"
 
     - name: "Gifts"
-      path: "features.gifts"
+      path: "groups.gifts"
       type: "bool"
-      description: "When you hand something to an NPC in your own words and they accept, it really moves from your inventory to theirs (only what you actually carry)."
+      description: "Hand things over in your own words and they really move; 'I have something for you' opens a picker. A really good gift can warm someone up a little (rarely). 'Go ahead, take the wine' lets you take it from their home without stealing."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Their Promises"
+      path: "groups.their_promises"
+      type: "bool"
+      description: "NPCs actually hand over the items, gold and beds they promise in dialogue, now or later, within a sensible generosity."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Your Promises & Favours"
+      path: "groups.your_promises"
+      type: "bool"
+      description: "What YOU promise ('I'll bring you mead tomorrow') is tracked with a fair deadline: keep it and they're glad, break it and they're disappointed. People close to you may ask a favour as you part (bring, deliver, look in on someone). See them in a book (Promises Book Key, or ask 'what did I promise?')."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Borrow & Lend"
+      path: "groups.loans"
+      type: "bool"
+      description: "Borrow cheap everyday things ('can I borrow your pickaxe?') and lend your own ('use my spare bow'). Bring them back and it counts in your favour; late, and they just mention it."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Shared Moments"
+      path: "groups.moments"
+      type: "bool"
+      description: "Meals together, a drink at the tavern, sitting a while by the fire, a song from a bard (or a hum from a friend), resting together (bedrolls at camp), and now and then a little unasked gift from an ally or lover. Who agrees goes by your real relationship. NPCs also act out what their own narration says: a laugh, a wave, a bow, pointing, standing up, coming over to you, drawing or putting away a weapon."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Care"
+      path: "groups.care"
+      type: "bool"
+      description: "'I'm hurt' gets you patched up (their potion or healing magic), 'cook this venison' cooks your ingredients, a smith improves your gear, a priest cures disease. Free from friends and priests, a fair price from others."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Hold & Keys"
+      path: "groups.hold_keys"
+      type: "bool"
+      description: "Leave things with a companion or friend ('hold this for me') and get them back later. A lover or ally may give you a key to their home."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Trust & Bonds"
+      path: "groups.trust_bonds"
+      type: "bool"
+      description: "Bonds: people grow closer through real deeds (meals, help, kept promises, time together), never just words, Acquaintance up to Ally. Trust: getting caught stealing from them, cruel words or a blow out of nowhere takes back what they gave, until you make it up. After a brawl (SeverActions), the loser knows they lost: a friend takes it as a good fight, anyone else is shown their place."
+      defaultValue: true
+      category: "Features"
+
+    - name: "Confirm Popups"
+      path: "groups.confirm"
+      type: "bool"
+      description: "An Accept/Decline popup before you pay for something (rooms, buying, selling, paid care, bribes and fines), before you hand things over to be held, before someone follows or leads you, and before a priest's cure. Off: things just happen once agreed. (Gifts have their own switch below.)"
       defaultValue: true
       category: "Features"
 
     - name: "Confirm Gifts"
       path: "features.confirm_gift"
       type: "bool"
-      description: "Accept/Decline popup showing exactly what leaves your inventory before a gift moves."
+      description: "An Accept/Decline popup before a gift you offered in talk leaves your pack. Off (default): once they accept, it's theirs, and they react in their own words. Saying 'I got something for you' without naming it still opens the list to pick what."
+      defaultValue: false
+      category: "Features"
+
+    - name: "Sit Down With You"
+      path: "features.sit_with_player"
+      type: "bool"
+      description: "When you sit (a chair, or the floor with a sitting mod), whoever walks with you sits too after a moment: a chair near you first; the floor only out of doors, in dungeons and camps, or in your home or theirs. In a tavern or someone else's house they only take a chair."
       defaultValue: true
       category: "Features"
 
-    - name: "Gift Menu"
-      path: "features.gift_menu"
+    - name: "Vanilla Dialogue by Talking"
+      path: "features.vanilla_lines"
       type: "bool"
-      description: "For an unnamed gift ('I have something for you'), open a picker listing your inventory so you choose what to give (the vanilla gift menu without PrismaUI)."
+      description: "Say what one of the NPC's real dialogue options says, in your own words, and they answer with the ORIGINAL recorded line; the quest scripts on it run and the option is greyed out in the vanilla menu, as if you'd picked it there. Only one answer: the AI's reply is cancelled for the original line (or, if the AI got in first, it says the line itself and only the effects run)."
       defaultValue: true
       category: "Features"
 
-    - name: "Gifts Improve Relationship"
-      path: "features.gift_disposition"
+    - name: "Confirm Quest Lines (recommended)"
+      path: "features.confirm_quest_lines"
       type: "bool"
-      description: "Rarely, a gift can raise their relationship one step: only the first gift in a week counts, it must be really good for them (worth 100+, or something that suits them), they must be genuinely pleased, and gifts can do this only once per NPC, never past Confidant."
+      description: "Before a dialogue option that belongs to a quest is said for you, a popup shows it ('Say this?'), so a loose match can never move a quest along by accident. Recommended ON."
       defaultValue: true
       category: "Features"
 
-    - name: "Permission To Take"
-      path: "features.allow_take"
+    - name: "Offer to Pass Time"
+      path: "features.sit_skip"
       type: "bool"
-      description: "When someone says you may take something lying in their home ('go ahead, take the wine'), that object becomes yours to pick up without stealing. Homes only, their own things only; counts against their generosity."
+      description: "Sitting a while with a friend or companion offers to let the time pass (half an hour to four hours, or just sit). Off: sitting never skips time."
       defaultValue: true
       category: "Features"
 
-    - name: "Shared Meals"
-      path: "features.share_meal"
+    - name: "Bonds with Followers"
+      path: "features.bonds_followers"
       type: "bool"
-      description: "Ask a friend (or closer) to eat together and they sit at a table, share a dish with you and invite you to join. Hospitality: not counted against their generosity. Once per ~6 hours with each person."
+      description: "Bonds also grows with your followers. Turn off if a follower relationship mod already handles them: Bonds then leaves anyone who has ever followed you to that mod."
       defaultValue: true
       category: "Features"
 
-    - name: "Promises"
-      path: "features.promises"
-      type: "bool"
-      description: "NPCs actually hand over items, gold and beds they promise in dialogue."
-      defaultValue: true
-      category: "Features"
+    # ── AI Model (the classifier: one small call per exchange) ──
+    # SkyrimNet itself reads llm.* for the mundanematters_classifier variant. Empty / 0 = the base config.
+    - name: "Classifier Model"
+      path: "llm.model_name"
+      type: "string"
+      description: "Model for Mundane Matters' classifier (one small JSON call after each exchange: what the player asked for, what the NPC promised). Default: DeepSeek V4 Flash, with Gemma 4 31B as the fallback (OpenRouter). Any OpenRouter model id works; several, comma-separated, are tried in order. Clear it to use your SkyrimNet base model. A fast, cheap model that writes clean JSON is best."
+      defaultValue: "deepseek/deepseek-v4-flash, google/gemma-4-31b-it"
+      category: "AI Model"
 
-    - name: "Confirm Paid Services"
-      path: "features.confirm"
-      type: "bool"
-      description: "Show an Accept/Decline popup (PrismaUI) before paying for a service such as an inn room. The NPC reacts to your choice."
-      defaultValue: true
-      category: "Features"
+    - name: "Classifier Temperature"
+      path: "llm.temperature"
+      type: "float"
+      description: "How much the classifier varies its answers. Lower is steadier: 0.7 is a good balance; 0.3 for the steadiest. 0 = use the base config's value."
+      defaultValue: 0.7
+      min: 0.0
+      max: 2.0
+      category: "AI Model"
 
     # ── Tuning ──
     - name: "Intent Confidence"
@@ -153,6 +192,42 @@ schema:
       max: 2000
       category: "Tuning"
 
+    - name: "Max Loan Value"
+      path: "tuning.max_loan_value"
+      type: "int"
+      description: "The most an item an NPC lends you can be worth. Above this, they won't lend it, friend or not."
+      defaultValue: 50
+      min: 0
+      max: 1000
+      category: "Tuning"
+
+    - name: "Days Between Gifts"
+      path: "tuning.npc_gift_days"
+      type: "int"
+      description: "How long the same ally or lover waits before giving you another little gift."
+      defaultValue: 7
+      min: 1
+      max: 60
+      category: "Tuning"
+
+    - name: "Little Gift Value"
+      path: "tuning.npc_gift_value"
+      type: "int"
+      description: "The most a little gift is worth (a lover's can be worth twice this)."
+      defaultValue: 30
+      min: 1
+      max: 500
+      category: "Tuning"
+
+    - name: "Promises Book Key"
+      path: "tuning.promises_key"
+      type: "hotkey"
+      description: "Press Set, then the key that opens your promises in a book. Default P. Avoid V, B and N in Gate to Sovngarde (potion hotkeys) and O (SkyrimNet voice). Unset to turn it off."
+      defaultValue: 80
+      min: -1
+      max: 255
+      category: "Tuning"
+
     - name: "Bed Loan Hours"
       path: "tuning.bed_hours"
       type: "int"
@@ -162,10 +237,28 @@ schema:
       max: 168
       category: "Tuning"
 
-    - name: "Run Self-Test"
+    - name: "Time Together (hours)"
+      path: "tuning.company_hours"
+      type: "int"
+      description: "'Keep me company': how many game hours they stay with you at most. It also ends when you sleep or wait, walk off, say goodbye, or they say they have to go."
+      defaultValue: 3
+      min: 1
+      max: 12
+      category: "Tuning"
+
+    - name: "Sitting Together (hours)"
+      path: "tuning.sit_hours"
+      type: "int"
+      description: "'Let's sit a while' with no time said: after this many game hours (waiting counts) they get up and go about their own day. A time you name ('till sunset') is kept instead."
+      defaultValue: 2
+      min: 1
+      max: 8
+      category: "Tuning"
+
+    - name: "Run Self-Test (DEVELOPERS ONLY)"
       path: "debug.self_test"
       type: "bool"
-      description: "Switch ON (in game) to send ~37 test exchanges through your classifier model; results land in MundaneMatters.log (SELFTEST lines) and a notification shows the score. Classification only: nothing happens in your game. Switch off afterwards."
+      description: "WARNING - FOR THE MOD DEVELOPER ONLY. DO NOT TURN THIS ON. It sends 100+ test conversations to your AI model in one go, which costs you API credits and can hit your provider's limits. It changes nothing in your game and does nothing for your playthrough. Leave it OFF."
       defaultValue: false
       category: "Debug"
 

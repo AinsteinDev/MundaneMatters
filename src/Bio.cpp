@@ -1,7 +1,18 @@
 #include "Bio.h"
 
+#include "Brawls.h"
+#include "VanillaLines.h"
+#include "Crime.h"
 #include "Game.h"
 #include "Ledger.h"
+#include "Keys.h"
+#include "Loans.h"
+#include "Pledges.h"
+#include "Moments.h"
+#include "MoveIn.h"
+#include "Safekeeping.h"
+#include "Trade.h"
+#include "Trust.h"
 #include "Promises.h"
 #include "Services.h"
 #include "SkyrimNetBridge.h"
@@ -36,24 +47,6 @@ namespace MundaneMatters::Bio
 			                   "Inn rooms here have no key: once paid, the room is simply open to the guest.", room->cost);
 		}
 
-		// What the player pays for an item from a merchant: vanilla barter formula (fBarterMax at
-		// Speech 0 down to fBarterMin at Speech 100). Haggling perks shave a little more off.
-		std::int32_t BuyPrice(RE::TESBoundObject* item)
-		{
-			float barterMax = 3.3f, barterMin = 2.0f;
-			if (auto* gs = RE::GameSettingCollection::GetSingleton()) {
-				if (auto* s = gs->GetSetting("fBarterMax")) {
-					barterMax = s->GetFloat();
-				}
-				if (auto* s = gs->GetSetting("fBarterMin")) {
-					barterMin = s->GetFloat();
-				}
-			}
-			const float speech = std::clamp(Game::Player()->AsActorValueOwner()->GetActorValue(RE::ActorValue::kSpeech), 0.0f, 100.0f);
-			const float mult = (std::max)(barterMin, barterMax - (barterMax - barterMin) * speech / 100.0f);
-			return (std::max)(1, static_cast<std::int32_t>(std::lround(item->GetGoldValue() * mult)));
-		}
-
 		// Food and drink the merchant really stocks, with real prices, so they stop inventing them.
 		std::string PriceFacts(RE::Actor* npc)
 		{
@@ -66,7 +59,7 @@ namespace MundaneMatters::Bio
 			for (auto& [obj, count] : chest->GetInventoryCounts()) {
 				auto* food = obj ? obj->As<RE::AlchemyItem>() : nullptr;
 				if (count > 0 && food && food->IsFood() && food->GetName() && *food->GetName()) {
-					foods.emplace_back(food->GetName(), BuyPrice(obj));
+					foods.emplace_back(food->GetName(), Trade::BuyPrice(obj));
 				}
 			}
 			if (foods.empty()) {
@@ -89,7 +82,7 @@ namespace MundaneMatters::Bio
 		std::string EscortFacts(RE::Actor* npc)
 		{
 			if (!SkyrimNet::ConfigBool("features.escort", true) || !SkyrimNet::ConfigBool("features.escort_local_only", true) ||
-				npc->IsPlayerTeammate()) {
+				Services::IsCompanion(npc)) {
 				return "";
 			}
 			auto* hold = Services::HoldOf(npc);
@@ -128,7 +121,7 @@ namespace MundaneMatters::Bio
 		std::string Facts(RE::Actor* npc)
 		{
 			std::string out;
-			for (auto&& f : { RoomFacts(npc), PriceFacts(npc), EscortFacts(npc), GenerosityFacts(npc) }) {
+			for (auto&& f : { RoomFacts(npc), PriceFacts(npc), EscortFacts(npc), GenerosityFacts(npc), Crime::GuardFacts(npc) }) {
 				if (!f.empty()) {
 					out += (out.empty() ? "" : "\n- ") + f;
 				}
@@ -152,6 +145,45 @@ namespace MundaneMatters::Bio
 			for (auto& l : Ledger::BioLines(id)) {
 				lines.push_back(std::move(l));
 			}
+			for (auto& l : Safekeeping::BioLines(id)) {
+				lines.push_back(std::move(l));
+			}
+			for (auto& l : Keys::BioLines(id)) {
+				lines.push_back(std::move(l));
+			}
+			for (auto& l : Loans::BioLines(id)) {
+				lines.push_back(std::move(l));
+			}
+			for (auto& l : Moments::BioLines(id)) {
+				lines.push_back(std::move(l));
+			}
+			for (auto& l : Pledges::BioLines(id)) {
+				lines.push_back(std::move(l));
+			}
+			for (auto& l : Brawls::BioLines(id)) {
+				lines.push_back(std::move(l));
+			}
+			for (auto& l : VanillaLines::BioLines(id)) {
+				lines.push_back(std::move(l));
+			}
+			for (auto& l : Trust::BioLines(id)) {
+				lines.push_back(std::move(l));
+			}
+			for (auto& l : MoveIn::BioLines(id)) {
+				lines.push_back(std::move(l));
+			}
+			// Arranging to meet: the real places nearby, so they don't invent "the east ridge".
+			if (auto m = Services::MeetPlacesLine(id); !m.empty()) {
+				lines.push_back(std::move(m));
+			}
+			// Going home together: whose home is near, and whether they'd go at all.
+			if (auto v = Services::VisitLine(id); !v.empty()) {
+				lines.push_back(std::move(v));
+			}
+			// A price the player just asked about, looked up in the real stock.
+			if (auto q = Trade::QuoteLine(id); !q.empty()) {
+				lines.push_back(std::move(q));
+			}
 			std::string out;
 			for (auto& l : lines) {
 				out += "- " + l + "\n";
@@ -168,6 +200,8 @@ namespace MundaneMatters::Bio
 	void Invalidate()
 	{
 		g_lastRefresh = {};
+		std::scoped_lock l(g_lock);
+		g_facts.clear();  // a loaded save is another timeline: nothing cached carries over
 	}
 
 	void RefreshNearby()
@@ -189,9 +223,9 @@ namespace MundaneMatters::Bio
 				facts[actor->GetFormID()] = Facts(actor.get());
 			}
 		}
+		// Replaced whole, never merged: someone who walked out of range (or whose room, prices or
+		// escort facts changed) must not keep yesterday's facts in their prompt.
 		std::scoped_lock l(g_lock);
-		for (auto& [id, f] : facts) {
-			g_facts[id] = std::move(f);
-		}
+		g_facts = std::move(facts);
 	}
 }

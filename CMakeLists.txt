@@ -29,6 +29,22 @@ set(SOURCES
 	src/Ledger.cpp
 	src/Bio.cpp
 	src/Confirm.cpp
+	src/Rest.cpp
+	src/Safekeeping.cpp
+	src/Keys.cpp
+	src/Trust.cpp
+	src/Bonds.cpp
+	src/Trade.cpp
+	src/Loans.cpp
+	src/Care.cpp
+	src/Moments.cpp
+	src/Keepsakes.cpp
+	src/Pledges.cpp
+	src/Crime.cpp
+	src/Brawls.cpp
+	src/VanillaLines.cpp
+	src/Gestures.cpp
+	src/MoveIn.cpp
 )
 
 add_commonlibsse_plugin(

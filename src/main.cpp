@@ -1,8 +1,21 @@
 #include "Bio.h"
+#include "Bonds.h"
+#include "Brawls.h"
+#include "Care.h"
+#include "Crime.h"
 #include "Confirm.h"
+#include "Keepsakes.h"
+#include "Loans.h"
+#include "Pledges.h"
+#include "Moments.h"
+#include "Trade.h"
 #include "Ledger.h"
+#include "Services.h"
 #include "Log.h"
 #include "Promises.h"
+#include "Rest.h"
+#include "Safekeeping.h"
+#include "Trust.h"
 #include "SkyrimNetBridge.h"
 #include "TurnPipeline.h"
 
@@ -17,18 +30,36 @@ namespace
 				MundaneMatters::TurnPipeline::Install();
 				MundaneMatters::Promises::Install();
 				MundaneMatters::Bio::Install();
+				MundaneMatters::Rest::Install();
+				MundaneMatters::Safekeeping::Install();
+				MundaneMatters::Trust::Install();
+				MundaneMatters::Bonds::Install();
+				MundaneMatters::Loans::Install();
+				MundaneMatters::Pledges::Install();
+				MundaneMatters::Brawls::Install();
+				MundaneMatters::Keepsakes::Install();
 				MundaneMatters::Confirm::Init();
 			}
+			break;
+		case SKSE::MessagingInterface::kSaveGame:
+			MundaneMatters::Ledger::SaveStarted();
 			break;
 		case SKSE::MessagingInterface::kPreLoadGame:
 			// The moment being loaded never had these popups, lines or pending handovers.
 			MundaneMatters::Confirm::Reset();
 			MundaneMatters::TurnPipeline::Reset();
 			MundaneMatters::Promises::Reset();
+			MundaneMatters::Trade::Reset();
+			MundaneMatters::Care::Reset();
+			MundaneMatters::Crime::Reset();
+			MundaneMatters::Moments::Reset();
 			break;
 		case SKSE::MessagingInterface::kPostLoadGame:
+			MundaneMatters::Services::OnGameLoaded();
+			[[fallthrough]];
 		case SKSE::MessagingInterface::kNewGame:
 			logger::info("game ready (SkyrimNet memory ready: {})", MundaneMatters::SkyrimNet::IsMemoryReady());
+			SKSE::GetTaskInterface()->AddTask([] { MundaneMatters::Ledger::ApplyGrants(); });
 			break;
 		default:
 			break;

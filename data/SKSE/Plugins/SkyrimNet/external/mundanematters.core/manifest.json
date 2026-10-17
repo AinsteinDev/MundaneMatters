@@ -1,13 +1,19 @@
 {
   "author": "Ainstein",
-  "description": "Everyday life for SkyrimNet NPCs: trade, inn rooms, training, shared meals, gifts, guest rights, follow/escort and promises they actually keep, all from natural speech. Requires the Mundane Matters native plugin (MundaneMatters.dll).",
+  "description": "Roleplay: NPCs do what they say. Shops, inn rooms, gifts, loans, places to stay, shared meals and seats by the fire, meetings, and promises both ways, all from natural speech, carried out with real items, prices and beds. Requires the Mundane Matters native plugin (MundaneMatters.dll) and SeverActions.",
   "icon": "handshake",
   "id": "mundanematters.core",
   "min_skyrimnet_version": "0.25.0",
   "mods": [],
   "nsfw": false,
   "tagline": "Everyday life for SkyrimNet NPCs",
-  "tags": ["services", "npc", "economy", "immersion"],
+  "tags": [
+    "roleplay",
+    "services",
+    "npc",
+    "immersion",
+    "economy"
+  ],
   "title": "Mundane Matters",
   "type": "bundle",
   "version": "0.2.0"
