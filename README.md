@@ -37,6 +37,9 @@ and the world quietly keeps up.
 > Out hunting with **Ronja**, a hunter outside Whiterun, I mentioned the inn costs me a hundred a night. She offered me a corner by her
 > hearth. That evening she made up a bedroll for me on her floor and kept her own bed, and when I lay down, she went to bed too.
 
+> ⚠️ **Made and tested by one person.** Mundane Matters is a solo project, tested only on my own game and mod list.
+> It will have rough edges on setups I haven't seen, so please [report what you find](#reporting-bugs).
+
 ---
 
 ## Features
@@ -206,8 +209,25 @@ cd MundaneMatters
 | `include/` | SkyrimNet and PrismaUI API headers |
 | `tools/` | Logic check, packaging |
 
-## Contributing
-Bug reports and ideas are welcome. For bugs, please include your `MundaneMatters.log` and the exact lines you and the NPC said.
+## Reporting bugs
+I'm a solo developer and the only tester so far, so every report helps.
+
+- **Where:** post in the **Mundane Matters channel on the SkyrimNet Discord**, or DM me there.
+- **What to include:**
+  - what you said and what the NPC answered (the exact lines if you can);
+  - what you expected, and what happened instead;
+  - your `MundaneMatters.log` (`Documents\My Games\Skyrim Special Edition\SKSE\`). Not comfortable sharing the whole log? Just paste the few lines
+    around the moment it went wrong; every decision is logged with the time and the NPC's name.
+- Anything on screen starting with **`MM_`** came from Mundane Matters, so a screenshot of that helps too.
+
+Ideas are welcome in the same places.
+
+## Roadmap
+Things I'm working on or planning, not promises:
+
+- **Hunting (in progress):** a companion who says *"I've got this shot"* really shoots the animal you point at, and *"dress the kill"* /
+  *"carry it home"* actually happens. Still being built and tested.
+- **Fishing (next):** fishing trips together, by talking: *"let's go fishing at the river"*, a companion who knows the good spots, and the catch shared or cooked after.
 
 ## Credits
 - **SkyrimNet** and its team: the platform this builds on.
