@@ -24,7 +24,7 @@ You share their table, sit by their fire, keep your word to them, and one day th
 ## What it is
 
 SkyrimNet NPCs talk beautifully, but what they say rarely happens. The innkeeper says *"here, have some stew"* and you're still hungry.
-The hunter says *"stay as long as you need"*, and her bed is still **Owned**. Your friend says *"sit with me"* and keeps standing.
+The hunter says *"stay as long as you need"*, and her bed is still **Owned**. Your friend says *"Have a drink with me"* and keeps standing their staring.
 
 **Mundane Matters closes that gap for the small, everyday parts of life.** It reads each exchange (what you said and how the NPC
 answered) by meaning, not keywords, and then does what was agreed with real items, real prices, real beds and real furniture.
