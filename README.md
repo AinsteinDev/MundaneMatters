@@ -4,9 +4,12 @@
 
 **NPCs do what they say.**
 
-A roleplay add-on for **SkyrimNet** (Skyrim SE/AE) that lets the everyday, *mundane* things you talk about actually happen.
+A roleplay add-on for **SkyrimNet** for Skyrim that lets the everyday, *mundane* things you talk about actually happen.
 Ask for a room, a drink, a seat by the fire, a place to stay. Promise to bring someone mead. Let a hunter carry your kill.
 If they agree in the conversation, the game makes it real.
+
+And because it's real, the people you meet stop being shopkeepers and quest-givers: they become people you *know*.
+You share their table, sit by their fire, keep your word to them, and one day they make room for you at their hearth.
 
 ![Version](https://img.shields.io/badge/version-0.2.0-blue)
 ![SkyrimNet](https://img.shields.io/badge/SkyrimNet-beta%2025%2B-8a2be2)
@@ -34,7 +37,7 @@ and the world quietly keeps up.
 > stay the night and offered me a meal. In plain SkyrimNet that meal only existed in the dialogue. I play with Survival, where a meal you can
 > barely afford matters. **With Mundane Matters, she actually hands it to me.**
 >
-> Out hunting with **Ronja**, a hunter outside Whiterun, I mentioned the inn costs me a hundred a night. She offered me a corner by her
+> Out hunting with **Ronja** (a modded NPC in Whiterun), I mentioned the inn costs me a hundred a night. She offered me a corner by her
 > hearth. That evening she made up a bedroll for me on her floor and kept her own bed, and when I lay down, she went to bed too.
 
 > ⚠️ **Made and tested by one person.** Mundane Matters is a solo project, tested only on my own game and mod list.
@@ -95,17 +98,23 @@ They aren't a free buffet: each NPC has a generosity budget based on how well th
 - A stray hit in a shared fight is forgiven; it doesn't turn your companion against you.
 
 ### 🔥 Shared moments
-- *"Let's sit by the fire."* They take a seat, the edge of a bed, or the floor where that fits (never a tavern floor), and you sit beside them.
-- **Sit down, and whoever walks with you sits too:** a nearby chair first, the floor only outdoors, in dungeons and at home.
-- *"Let's eat together."* / *"A round of mead?"* A shared meal at their table, a drink at the tavern.
-- *"Play us something!"* A bard plays a real song; anyone else hums a bit.
-- *"Let's make camp."* Companions bed down with you, with bedrolls in the wild.
-- *"I'm hurt."* / *"Can you cook this venison?"* / *"Can you sharpen my sword?"* Healing, cooking, a smith's work, a priest's cure.
-- *"Come live with me."* Someone close can move into your house, with a bed of their own.
+The small things are how you get to know someone, so they're the heart of the mod.
+
+- **A quiet evening.** *"Let's sit by the fire."* They settle into a chair, the edge of a bed, or the floor if it suits the place,
+  and you sit down beside them. Pass an hour talking, or just watch the flames.
+- **Company that feels like company.** Sit down after a long road and whoever travels with you sits too: a chair nearby if there's one,
+  the grass or the floor out in the wilds or at home, never a tavern floor.
+- **Their table, their mead.** *"Let's eat together."* / *"A round on me?"* You share a meal at their table, or a drink at the inn.
+- **A song for you.** *"Play us something!"* A bard picks up the lute; a friend just hums a tune for you, half under their breath.
+- **Nights on the road.** *"Let's make camp."* Your companions lay out bedrolls and bed down beside you.
+- **Looked after.** *"I'm hurt."* / *"Can you cook this venison?"* / *"Can you sharpen my sword?"* A friend patches you up, cooks your catch,
+  works on your gear; a priest cures what ails you.
+- **A home together.** *"Come live with me."* Someone close moves into your house, with a bed of their own.
 
 ### ⚖️ Trust, bonds and guards
-- **Bonds:** people grow closer through real deeds (meals, help, kept promises, time together), never through pretty words alone.
-- **Trust:** steal from them, insult them or hit them out of nowhere, and they take back what they gave until you make amends.
+- **Bonds:** a stranger becomes an acquaintance, a friend, someone you'd trust with your life, through what you do together:
+  meals shared, help given, promises kept, evenings spent. Pretty words alone won't do it.
+- **Trust:** steal from them, insult them or hit them out of nowhere, and they take back what they gave you until you make amends.
 - **Guards:** with a bounty, *"I'll pay the fine"*, a bribe, persuasion or a threat, decided by your real Speech skill, not the chat.
 - **Vanilla dialogue in your own words:** say what one of the NPC's real dialogue options says, and they answer with the original recorded line, quest scripts and all.
 
@@ -128,13 +137,12 @@ and who's staying where, so what they say matches what will happen.
 ## Requirements
 - **SkyrimNet** beta 25 or newer, with its own requirements (SKSE, Address Library, **PrismaUI**)
 - **SeverActions** (follow, escort, travel and furniture)
-- **powerofthree's Papyrus Extender**
 
 **Optional:**
 - **IntelEngine**: NPCs really turn up to the meetings they agree to.
 - A hunting mod that turns carcasses into items (e.g. Carry Your Carcasses) works with *"hold this for me"*.
 
-Tested on Skyrim AE 1.6.1170.
+Tested on Skyrim AE 1.6.1170. I play it with the **Gate to Sovngarde (GTS)** mod list, so it works great with that.
 
 ## Installation
 1. Download `MundaneMatters-v0.2.0.zip` from [Releases](https://github.com/AinsteinDev/MundaneMatters/releases).
