@@ -12,13 +12,14 @@ Run: python tools/gate_check.py
 """
 import importlib.util
 import re
+import os
 import sys
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
 ROOT = Path(__file__).resolve().parent.parent
 SRC = (ROOT / "src/TurnPipeline.cpp").read_text(encoding="utf-8")
-LOG = Path.home() / "Documents/My Games/Skyrim Special Edition/SKSE/MundaneMatters.log"
+LOG = Path(os.environ.get("MM_LOG") or Path.home() / "Documents/My Games/Skyrim Special Edition/SKSE/MundaneMatters.log")
 
 spec = importlib.util.spec_from_file_location("st", ROOT / "tools/selftest_offline.py")
 st = importlib.util.module_from_spec(spec)

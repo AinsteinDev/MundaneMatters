@@ -12,6 +12,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # CommonLibSSE-NG (alandtse fork, "ng" branch) as a submodule. SE + AE only.
 set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ENABLE_SKYRIM_VR OFF CACHE BOOL "" FORCE)
+# Keep the build machine's folders out of the DLL: source paths (log locations, asserts) become
+# relative, for this plugin and CommonLib alike. Set before CommonLib so it applies there too.
+if(MSVC)
+	file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/" MM_TRIM_ROOT)
+	add_compile_options("/d1trimfile:${MM_TRIM_ROOT}")
+endif()
 add_subdirectory(extern/CommonLibSSE-NG EXCLUDE_FROM_ALL)
 # CommonLib only includes its add_commonlibsse_plugin() helper on the prebuilt path; load it for source builds.
 include(extern/CommonLibSSE-NG/cmake/CommonLibSSE.cmake)
@@ -58,6 +64,11 @@ add_commonlibsse_plugin(
 target_include_directories(${PROJECT_NAME} PRIVATE src include)
 target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h)
+
+# The debug-symbols path in the DLL is just the file name, not the build machine's folder.
+if(MSVC)
+	target_link_options(${PROJECT_NAME} PRIVATE "/PDBALTPATH:%_PDB%")
+endif()
 
 # Stage the built DLL next to the data files so deploy.ps1 can mirror one folder into MO2.
 add_custom_command(

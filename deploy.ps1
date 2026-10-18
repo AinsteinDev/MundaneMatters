@@ -1,8 +1,12 @@
 # Mirrors data\ into the MO2 mod folder "MundaneMatters". Enable the mod once in MO2's left pane.
 # Usage: .\deploy.ps1   (run .\build.ps1 first)
+# The MO2 mod folder comes from $env:MM_DEPLOY_DIR, or the first line of deploy.local (not committed).
 $ErrorActionPreference = 'Stop'
 $src = Join-Path $PSScriptRoot 'data'
-$dst = $env:MM_DEPLOY_DIR  # your MO2 mod folder (...\mods\MundaneMatters)
+$dst = $env:MM_DEPLOY_DIR
+$local = Join-Path $PSScriptRoot 'deploy.local'
+if (-not $dst -and (Test-Path $local)) { $dst = (Get-Content $local -TotalCount 1).Trim() }
+if (-not $dst) { throw 'Set MM_DEPLOY_DIR, or put your MO2 mod folder (...\mods\MundaneMatters) in deploy.local' }
 
 if (-not (Test-Path "$src\SKSE\Plugins\MundaneMatters.dll")) { throw 'MundaneMatters.dll missing - run build.ps1 first' }
 
